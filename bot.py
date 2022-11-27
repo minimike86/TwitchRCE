@@ -1,7 +1,6 @@
 import asyncio
 import os
 
-import aiohttp
 from twitchio.ext import commands
 
 import settings
@@ -21,11 +20,9 @@ class Bot(commands.Bot):
         # initial_channels can also be a callable which returns a list of strings...
         super().__init__(token=oauth, prefix=prefix, initial_channels=channels)
 
-        self.loop = asyncio.get_event_loop()
-
         # Constants
-        self.char_limit = self.character_limit = 500
-        self.aiohttp_session = None
+        self.loop = asyncio.get_event_loop()
+        self.character_limit = 500
 
         # Load cogs
         for file in sorted(os.listdir("cogs")):
@@ -37,10 +34,6 @@ class Bot(commands.Bot):
         # We are logged in and ready to chat and use commands...
         print(f'Logged in as | {self.nick}')
         print(f'User id is | {self.user_id}')
-
-        # Initialize aiohttp Client Session
-        if not self.aiohttp_session:
-            self.aiohttp_session = aiohttp.ClientSession(loop=self.loop)
 
     async def event_message(self, message):
         # Messages with echo set to True are messages sent by the bot...
@@ -55,5 +48,4 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def hello(self, ctx: commands.Context):
-        # Send a hello back!
         await ctx.send(f'Hello {ctx.author.name}!')
