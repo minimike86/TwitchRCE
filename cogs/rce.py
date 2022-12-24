@@ -1,12 +1,9 @@
 import traceback
 
-import twitchio
 from twitchio.ext import commands
 import subprocess
 from subprocess import Popen, PIPE
 import textwrap
-import shlex
-from threading import Timer
 from asyncio import CancelledError
 from twitchio.ext import pubsub
 
@@ -33,27 +30,46 @@ class RCECog(commands.Cog):
             return
         print('RCECog: ', message.content)
 
-    @commands.command()
+    @commands.command(aliases=['cmd'])
     async def exec(self, ctx: commands.Context):
         # only msec user can run exec commands
         if ctx.author.name == 'msec':
             # grab the arbitrary bash command
             cmd = ctx.message.content.replace(prefix + ctx.command.name, '').strip()
+            for alias in ctx.command.aliases:
+                cmd = cmd.replace(prefix + alias, '').strip()
+
             # attempt to run the command in a subprocess
             # which must finish running the command within 5 seconds or the process will be killed.
             try:
-                proc = Popen(shlex.split(cmd), shell=True, stdout=PIPE, stderr=PIPE)
-                timer = Timer(5, proc.kill)
+                if '|' in cmd:
+                    cmd1, cmd2 = [x.strip() for x in cmd.split('|')]
+
+                    # drop cmd chains
+                    # whitelist cmds to run
+                    # if cmd1 in list
+
+                    proc1 = Popen(cmd1, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                    proc = Popen(cmd2, shell=True, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
+                    proc1.stdout.close()
+                else:
+                    proc = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
                 try:
-                    timer.start()
-                    stdout, stderr = proc.communicate()
-                    await ctx.send(textwrap.shorten(f'stdout: {stdout.decode()}', width=self.bot.character_limit))
+                    stdout, stderr = proc.communicate(timeout=5)
+                    # stdout
+                    if len(stdout.decode()) > 0:
+                        await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
+                            f"{textwrap.shorten(f'stdout: {stdout.decode()}', width=self.bot.character_limit)}", "green")
+                    # stderr
+                    if len(stderr.decode()) > 0:
+                        await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
+                            f"{textwrap.shorten(f'stderr: {stderr.decode()}', width=self.bot.character_limit)}", "orange")
                 except TimeoutError:
                     await ctx.send('TimeoutError occurred')
                 except CancelledError:
                     await ctx.send('CancelledError occurred')
                 finally:
-                    timer.cancel()
+                    proc.kill()
             except RuntimeError:
                 await ctx.send('An exception occurred')
 
