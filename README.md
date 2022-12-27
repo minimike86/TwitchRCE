@@ -2,10 +2,19 @@
 Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machine
 
 ## Commands
-* !exec - *Runs literally any bash command*
+* !exec OR !cmd - *Runs any bash command (if it's in the allow list)*
 * !killmyshell - *Finds open terminal windows and closes the most recently opened*
 
 ### Environment Variables
-* TWITCH_CLIENT_ID=xxx
-* TWITCH_CLIENT_SECRET=xxx
-* TWITCH_CHAT_OAUTH=xxx
+Update the .env file with your IRC and TWITCH API tokens, and your broadcaster ID to use this script:
+* TWITCH_CLIENT_ID=XXXXXX
+* TWITCH_CLIENT_SECRET=XXXXXX
+* TWITCH_CHAT_OAUTH=XXXXXX
+* CLIENT_ID=XXXXXX
+* ACCESS_TOKEN=XXXXXX
+* REFRESH_TOKEN=XXXXXX
+* BROADCASTER_ID=XXXXXX
+
+Comma separated list of linux binaries that you will allow to run:
+* CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
+                  'who', 'whoami']
