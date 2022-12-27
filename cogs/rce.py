@@ -6,7 +6,7 @@ from subprocess import Popen, PIPE
 import textwrap
 from asyncio import CancelledError
 from twitchio.ext import pubsub
-
+import re
 from bot import prefix
 import settings
 from twitch import Twitch
@@ -34,42 +34,52 @@ class RCECog(commands.Cog):
     async def exec(self, ctx: commands.Context):
         # only msec user can run exec commands
         if ctx.author.name == 'msec':
-            # grab the arbitrary bash command
+            # grab the arbitrary bash command(s)
             cmd = ctx.message.content.replace(prefix + ctx.command.name, '').strip()
             for alias in ctx.command.aliases:
                 cmd = cmd.replace(prefix + alias, '').strip()
 
-            # attempt to run the command in a subprocess
+            # attempt to run the command(s) in a subprocess
             # which must finish running the command within 5 seconds or the process will be killed.
             try:
+                proc: subprocess = None
                 if '|' in cmd:
                     cmd1, cmd2 = [x.strip() for x in cmd.split('|')]
-
-                    # drop cmd chains
-                    # whitelist cmds to run
-                    # if cmd1 in list
-
-                    proc1 = Popen(cmd1, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-                    proc = Popen(cmd2, shell=True, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
-                    proc1.stdout.close()
+                    command1 = re.match(settings.CMD_REGEX, cmd1).group(0)
+                    command2 = re.fullmatch(settings.CMD_REGEX, cmd2)
+                    if command1 in settings.CMD_ALLOW_LIST and command2 in settings.CMD_ALLOW_LIST:
+                        proc1 = Popen(cmd1, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                        proc = Popen(cmd2, shell=True, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
+                        proc1.stdout.close()
                 else:
-                    proc = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                    command = re.match(settings.CMD_REGEX, cmd).group(0)
+                    if command in settings.CMD_ALLOW_LIST:
+                        proc = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
                 try:
-                    stdout, stderr = proc.communicate(timeout=5)
-                    # stdout
-                    if len(stdout.decode()) > 0:
+                    if proc is not None:
+                        stdout, stderr = proc.communicate(timeout=5)
+                        # stdout
+                        if len(stdout.decode()) > 0:
+                            stdout = f'stdout: {stdout.decode()}'
+                            await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
+                                f"{textwrap.shorten(stdout, width=self.bot.character_limit)}", "green")
+                        # stderr
+                        if len(stderr.decode()) > 0:
+                            stderr = f'stderr: {stderr.decode()}'
+                            await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
+                                f"{textwrap.shorten(stderr, width=self.bot.character_limit)}", "orange")
+                    else:
+                        # cmd not in allow list
+                        error_msg = f'Nice try but the command(s) in `{cmd}` are not in the allow list!'
                         await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                            f"{textwrap.shorten(f'stdout: {stdout.decode()}', width=self.bot.character_limit)}", "green")
-                    # stderr
-                    if len(stderr.decode()) > 0:
-                        await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                            f"{textwrap.shorten(f'stderr: {stderr.decode()}', width=self.bot.character_limit)}", "orange")
+                            f"{textwrap.shorten(error_msg, width=self.bot.character_limit)}", "orange")
                 except TimeoutError:
                     await ctx.send('TimeoutError occurred')
                 except CancelledError:
                     await ctx.send('CancelledError occurred')
                 finally:
-                    proc.kill()
+                    if proc is not None:
+                        proc.kill()
             except RuntimeError:
                 await ctx.send('An exception occurred')
 
