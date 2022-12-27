@@ -10,5 +10,5 @@ REFRESH_TOKEN = config('REFRESH_TOKEN')
 
 BROADCASTER_ID = int(config('BROADCASTER_ID'))
 
-CMD_ALLOW_LIST = ['id', 'whoami', 'echo', 'ipconfig', 'cd', 'ls', 'cat', 'netstat', 'nslookup', 'aux', 'grep']
-CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
+CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
+                  'who', 'whoami']

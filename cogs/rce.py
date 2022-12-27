@@ -18,6 +18,8 @@ class RCECog(commands.Cog):
         self.bot = bot
         self.bot.pubsub = pubsub.PubSubPool(bot)
 
+        self.CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
+
         @bot.event()
         async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
             if event.reward.title == 'Kill My Shell':  # title=Kill My Shell
@@ -45,14 +47,14 @@ class RCECog(commands.Cog):
                 proc: subprocess = None
                 if '|' in cmd:
                     cmd1, cmd2 = [x.strip() for x in cmd.split('|')]
-                    command1 = re.match(settings.CMD_REGEX, cmd1).group(0)
-                    command2 = re.fullmatch(settings.CMD_REGEX, cmd2)
+                    command1 = re.match(self.CMD_REGEX, cmd1).group(0)
+                    command2 = re.fullmatch(self.CMD_REGEX, cmd2)
                     if command1 in settings.CMD_ALLOW_LIST and command2 in settings.CMD_ALLOW_LIST:
                         proc1 = Popen(cmd1, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
                         proc = Popen(cmd2, shell=True, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
                         proc1.stdout.close()
                 else:
-                    command = re.match(settings.CMD_REGEX, cmd).group(0)
+                    command = re.match(self.CMD_REGEX, cmd).group(0)
                     if command in settings.CMD_ALLOW_LIST:
                         proc = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
                 try:
