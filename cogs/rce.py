@@ -1,3 +1,5 @@
+import os
+import signal
 import traceback
 
 from twitchio.ext import commands
@@ -35,11 +37,17 @@ class RCECog(commands.Cog):
     @commands.command(aliases=['cmd'])
     async def exec(self, ctx: commands.Context):
         # only msec user can run exec commands
-        if ctx.author.name == 'msec':
-            # grab the arbitrary bash command(s)
+        if int(ctx.author.id) == settings.BROADCASTER_ID:
+            # grab the arbitrary bash command(s) without the bot prefix
             cmd = ctx.message.content.replace(prefix + ctx.command.name, '').strip()
             for alias in ctx.command.aliases:
                 cmd = cmd.replace(prefix + alias, '').strip()
+
+            # strip operators
+            operators = ['>>', '>', '&&', '&', ';', '..']
+            if any(value in cmd for value in operators):
+                for operator in operators:
+                    cmd = cmd.replace(operator, '')
 
             # attempt to run the command(s) in a subprocess
             # which must finish running the command within 5 seconds or the process will be killed.
@@ -81,7 +89,7 @@ class RCECog(commands.Cog):
                     await ctx.send('CancelledError occurred')
                 finally:
                     if proc is not None:
-                        proc.kill()
+                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except RuntimeError:
                 await ctx.send('An exception occurred')
 

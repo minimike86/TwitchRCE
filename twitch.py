@@ -27,7 +27,7 @@ class Twitch:
         if not data:
             print("Failed to get redemptions.")
         else:
-            print("Got redemptions.")
+            print(f"Got {len(data) + 1} redemptions.")
             return data.get("data")
 
     async def create_custom_reward(self, title: str, cost: int,
@@ -52,9 +52,9 @@ class Twitch:
                 data = await resp.json()
                 stream = data.get("data")
         if not stream:
-            print("Failed to create redemption.")
+            print(f"Failed to create redemption: {title}.")
         else:
-            print("Created redemption.")
+            print(f"Created redemption: {title}.")
 
     async def update_redemption_status(self, reward_ids: str, reward_id: str, status: bool):
         """
