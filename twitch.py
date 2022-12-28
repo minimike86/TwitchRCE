@@ -1,6 +1,8 @@
 import json
 import traceback
 
+from twitchio.ext import pubsub
+
 import settings
 import aiohttp
 
@@ -10,7 +12,7 @@ class Twitch:
     def __init__(self, broadcaster_id: str):
         self.broadcaster_id = broadcaster_id
 
-    async def get_custom_reward(self):
+    async def get_custom_rewards(self):
         url = "https://api.twitch.tv/helix/channel_points/custom_rewards"
         params = {
             "broadcaster_id": self.broadcaster_id
@@ -22,15 +24,14 @@ class Twitch:
         async with aiohttp.ClientSession() as session:
             async with session.get(url=url, params=params, headers=headers) as resp:
                 data = await resp.json()
-                stream = list(filter(lambda reward: reward["title"] == "Kill My Shell", data.get("data")))
-        if not stream:
+        if not data:
             print("Failed to get redemptions.")
         else:
             print("Got redemptions.")
-            return stream[0].get("id")
+            return data.get("data")
 
     async def create_custom_reward(self, title: str, cost: int,
-                                   is_global_cooldown_enabled: bool, global_cooldown_seconds: int):
+                                   is_global_cooldown_enabled: bool = False, global_cooldown_seconds: int = 1):
         url = "https://api.twitch.tv/helix/channel_points/custom_rewards"
         params = {
             "broadcaster_id": self.broadcaster_id
@@ -138,3 +139,76 @@ class Twitch:
                 print("Announcement made.")
         except Exception as err:
             print(f"something broke {type(err)}", traceback.format_exc())
+
+    async def get_vips(self, broadcaster_id: str):
+        url = "https://api.twitch.tv/helix/channels/vips"
+        params = {
+            "broadcaster_id": broadcaster_id
+        }
+        headers = {
+            "client-id": settings.TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {settings.ACCESS_TOKEN}"
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url, params=params, headers=headers) as resp:
+                status = resp.status
+                data = await resp.json()
+                if status == 204:
+                    print("Failed to get VIPS.")
+                elif status == 200:
+                    # print(f"get_vips: {data}")
+                    return data.get('data')
+
+    async def add_channel_vip(self, event: pubsub.PubSubChannelPointsMessage, broadcaster_id: str):
+        url = "https://api.twitch.tv/helix/channels/vips"
+        params = {
+            "user_id": event.user.id,
+            "broadcaster_id": broadcaster_id
+        }
+        headers = {
+            "client-id": settings.TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {settings.ACCESS_TOKEN}"
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url=url, params=params, headers=headers) as resp:
+                status = resp.status
+                if status == 409:
+                    print("The broadcaster doesnt have available VIP slots.")
+                    await Twitch(settings.BROADCASTER_ID) \
+                        .update_redemption_status(event.id, event.reward.id, False)
+                elif status == 404:
+                    print("The ID in broadcaster_id was not found. / The ID in user_id was not found.")
+                    await Twitch(settings.BROADCASTER_ID) \
+                        .update_redemption_status(event.id, event.reward.id, False)
+                elif status == 422:
+                    print("The user in the user_id query parameter is already a VIP.")
+                    await Twitch(settings.BROADCASTER_ID) \
+                        .update_redemption_status(event.id, event.reward.id, False)
+                elif status == 204:
+                    print("Successfully added the VIP.")
+                    await Twitch(settings.BROADCASTER_ID) \
+                        .update_redemption_status(event.id, event.reward.id, True)
+
+    async def remove_channel_vip(self, user_id: str, broadcaster_id: str):
+        pass
+
+    async def get_moderators(self, broadcaster_id: str):
+        url = "https://api.twitch.tv/helix/moderation/moderators"
+        params = {
+            "broadcaster_id": broadcaster_id
+        }
+        headers = {
+            "client-id": settings.TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {settings.ACCESS_TOKEN}"
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url, params=params, headers=headers) as resp:
+                status = resp.status
+                data = await resp.json()
+                if status == 400:
+                    print("The broadcaster_id query parameter is required.")
+                elif status == 401:
+                    print("The access token is not valid.")
+                elif status == 200:
+                    # print(f"get_vips: {data}")
+                    return data.get('data')

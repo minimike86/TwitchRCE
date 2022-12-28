@@ -23,10 +23,12 @@ async def main():
 
 
 async def setup():
-    custom_reward_id = await Twitch(settings.BROADCASTER_ID).get_custom_reward()
-    if custom_reward_id is not None:
-        await Twitch(settings.BROADCASTER_ID).delete_custom_reward(custom_reward_id)
+    custom_reward_ids = await Twitch(settings.BROADCASTER_ID).get_custom_rewards()
+    if custom_reward_ids is not None:
+        for reward in list(filter(lambda x: x["title"] == "Kill My Shell" or x["title"] == "VIP", custom_reward_ids)):
+            await Twitch(settings.BROADCASTER_ID).delete_custom_reward(reward["id"])
     await Twitch(settings.BROADCASTER_ID).create_custom_reward("Kill My Shell", 666, True, 5 * 60)
+    await Twitch(settings.BROADCASTER_ID).create_custom_reward("VIP", 20000)
 
 
 if __name__ == "__main__":
