@@ -9,7 +9,6 @@ import textwrap
 from asyncio import CancelledError
 from twitchio.ext import pubsub
 import re
-from bot import prefix
 import settings
 from twitch import Twitch
 
@@ -39,9 +38,9 @@ class RCECog(commands.Cog):
         # only msec user can run exec commands
         if int(ctx.author.id) == settings.BROADCASTER_ID:
             # grab the arbitrary bash command(s) without the bot prefix
-            cmd = ctx.message.content.replace(prefix + ctx.command.name, '').strip()
+            cmd = ctx.message.content.replace(self.bot.get_prefix() + ctx.command.name, '').strip()
             for alias in ctx.command.aliases:
-                cmd = cmd.replace(prefix + alias, '').strip()
+                cmd = cmd.replace(self.bot.get_prefix() + alias, '').strip()
 
             # strip operators
             operators = ['>>', '>', '&&', '&', ';', '..']

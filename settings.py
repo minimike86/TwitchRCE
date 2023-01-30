@@ -9,6 +9,7 @@ ACCESS_TOKEN = config('ACCESS_TOKEN')
 REFRESH_TOKEN = config('REFRESH_TOKEN')
 
 BROADCASTER_ID = int(config('BROADCASTER_ID'))
+CHANNEL_NAME = config('CHANNEL_NAME')
 
-CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
-                  'who', 'whoami']
+CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'man', 'netstat', 'nslookup', 'pwd',
+                  'top', 'who', 'whoami']
