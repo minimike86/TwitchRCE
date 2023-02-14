@@ -1,46 +1,38 @@
-import os
-import signal
+import re
 import traceback
+import textwrap
 
-from twitchio.ext import commands
 import subprocess
 from subprocess import Popen, PIPE
-import textwrap
+
 from asyncio import CancelledError
-from twitchio.ext import pubsub
-import re
+
+import twitchio
+from twitchio.ext import commands, pubsub
+
 import settings
-from twitch import Twitch
 
 
 class RCECog(commands.Cog):
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.bot.pubsub = pubsub.PubSubPool(bot)
-
         self.CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
 
-        @bot.event()
-        async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
-            if event.reward.title == 'Kill My Shell':  # title=Kill My Shell
-                print('RCECog pubsub_channel_points: ', event.id, event.reward, event.status, event.user, event.timestamp)
-                await self.killmyshell(self, event)
-
     @commands.Cog.event()
-    async def event_message(self, message):
+    async def event_message(self, message: twitchio.Message):
         if message.echo:
             return
-        print('RCECog: ', message.content)
+        # print('RCECog: ', message.author.name, message.content)
 
     @commands.command(aliases=['cmd'])
     async def exec(self, ctx: commands.Context):
-        # only msec user can run exec commands
-        if int(ctx.author.id) == settings.BROADCASTER_ID:
+        # only broadcaster can run exec commands
+        if int(ctx.author.id) == self.bot.user_id:
             # grab the arbitrary bash command(s) without the bot prefix
-            cmd = ctx.message.content.replace(self.bot.get_prefix() + ctx.command.name, '').strip()
+            cmd = ctx.message.content.replace(f"{self.bot._prefix}{ctx.command.name}", '').strip()
             for alias in ctx.command.aliases:
-                cmd = cmd.replace(self.bot.get_prefix() + alias, '').strip()
+                cmd = cmd.replace(f"{self.bot._prefix}{alias}", '').strip()
 
             # strip operators
             operators = ['>>', '>', '&&', '&', ';', '..']
@@ -70,29 +62,47 @@ class RCECog(commands.Cog):
                         # stdout
                         if len(stdout.decode()) > 0:
                             stdout = f'stdout: {stdout.decode()}'
-                            await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                                f"{textwrap.shorten(stdout, width=self.bot.character_limit)}", "green")
+                            await ctx.channel.send(content=stdout)
+                            # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+                            # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                            #                                             broadcaster_id=self.bot.user_id,
+                            #                                             moderator_id='',
+                            #                                             message=f"{textwrap.shorten(stdout, width=500)}",
+                            #                                             color="green")
+
                         # stderr
                         if len(stderr.decode()) > 0:
                             stderr = f'stderr: {stderr.decode()}'
-                            await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                                f"{textwrap.shorten(stderr, width=self.bot.character_limit)}", "orange")
+                            await ctx.send(content=stderr)
+                            # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+                            # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                            #                                             broadcaster_id=self.bot.user_id,
+                            #                                             moderator_id='',
+                            #                                             message=f"{textwrap.shorten(stderr, width=500)}",
+                            #                                             color="orange")
+
                     else:
                         # cmd not in allow list
                         error_msg = f'Nice try but the command(s) in `{cmd}` are not in the allow list!'
-                        await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                            f"{textwrap.shorten(error_msg, width=self.bot.character_limit)}", "orange")
+                        await ctx.send(content=error_msg)
+                        # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+                        # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                        #                                             broadcaster_id=self.bot.user_id,
+                        #                                             moderator_id='',
+                        #                                             message=f"{textwrap.shorten(error_msg, width=500)}",
+                        #                                             color="orange")
+
                 except TimeoutError:
                     await ctx.send('TimeoutError occurred')
                 except CancelledError:
                     await ctx.send('CancelledError occurred')
                 finally:
-                    if proc is not None:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    pass
+                    # if proc is not None:
+                    #     os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except RuntimeError:
                 await ctx.send('An exception occurred')
 
-    @staticmethod
     async def killmyshell(self, event: pubsub.PubSubChannelPointsMessage):
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
         proc_id = subprocess.check_output(cmd1, shell=True).decode().split(" ")[0].strip()
@@ -100,21 +110,31 @@ class RCECog(commands.Cog):
             try:
                 cmd2 = f"xkill -id {proc_id}"
                 result = subprocess.check_output(cmd2, shell=True)
-                result = f"{event.user.name} just killed MSec\'s shell. " \
+                result = f"{event.user.name} just killed my shell. " \
                          + f"stdout: {result.decode()}"
-                await Twitch(settings.BROADCASTER_ID).update_redemption_status(event.id, event.reward.id, True)
-                print(f"{textwrap.shorten(result, width=self.bot.character_limit)}")
-                await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                    f"{textwrap.shorten(result, width=self.bot.character_limit)}", "green")
+                await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                                                                     broadcaster_id=500,
+                                                                     reward_id=event.id,
+                                                                     custom_reward_id=event.reward.id,
+                                                                     status=True)
+                print(f"{textwrap.shorten(result, width=500)}")
+                await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                                                            broadcaster_id=self.bot.user_id,
+                                                            moderator_id='',
+                                                            message=f"{textwrap.shorten(result, width=500)}",
+                                                            color="green")
 
             except Exception as err:
                 print(f"something broke {type(err)}", traceback.format_exc())
         else:
-            await Twitch(settings.BROADCASTER_ID).update_redemption_status(event.id, event.reward.id, False)
+            await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                                                                 broadcaster_id=self.bot.user_id,
+                                                                 reward_id=event.id,
+                                                                 custom_reward_id=event.reward.id,
+                                                                 status=False)
             print(f"Unlucky {event.user.name} but there are no terminals open to kill")
-            await Twitch(settings.BROADCASTER_ID).send_chat_announcement(
-                f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded", "purple")
-
-
-def prepare(bot: commands.Bot):
-    bot.add_cog(RCECog(bot))
+            await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                                                        broadcaster_id=self.bot.user_id,
+                                                        moderator_id='',
+                                                        message=f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded",
+                                                        color="purple")

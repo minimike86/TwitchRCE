@@ -1,34 +1,57 @@
-from twitchio.ext import commands
-from twitchio.ext import pubsub
-
-import settings
-from twitch import Twitch
+import twitchio
+from twitchio.ext import commands, pubsub
 
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.bot.pubsub = pubsub.PubSubPool(bot)
 
-        @bot.event()
-        async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
-            if event.reward.title == "VIP":  # title=VIP
-                print('VIPCog pubsub_channel_points: ', event.id, event.reward, event.status, event.user, event.timestamp)
-                await self.add_vip(event=event)
+    @commands.Cog.event()
+    async def event_message(self, message: twitchio.Message):
+        if message.echo:
+            return
+        # print('VIPCog: ', message.author.name, message.content)
 
-    async def add_vip(self, event: pubsub.PubSubChannelPointsMessage):
-        mods = await Twitch(settings.BROADCASTER_ID).get_moderators(broadcaster_id=settings.BROADCASTER_ID)
-        vips = await Twitch(settings.BROADCASTER_ID).get_vips(broadcaster_id=settings.BROADCASTER_ID)
-        mods_user_ids = [user['user_id'] for user in mods]
-        vips_user_ids = [user['user_id'] for user in vips]
-        if event.user.id in mods_user_ids:
-            print('user is a MOD')
-        elif event.user.id in vips_user_ids:
-            print('user already a VIP')
-        else:
-            await Twitch(settings.BROADCASTER_ID).add_channel_vip(event, settings.BROADCASTER_ID)
+    @commands.command()
+    async def add_channel_vip(self, event: pubsub.PubSubChannelPointsMessage):
+        pass
 
+        # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        # mods = await self.bot._http.get_channel_moderators(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                                    broadcaster_id=self.bot.user_id)
+        # mods_user_ids = [user['user_id'] for user in mods]
+        # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        # vips = await self.bot._http.get_channel_vips(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                              broadcaster_id=self.bot.user_id)
+        # vips_user_ids = [user['user_id'] for user in vips]
+        # if event.user.id in mods_user_ids:
+        #     print('user is already a MOD')
+        #     # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        #     await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                                          broadcaster_id=self.bot.user_id,
+        #                                                          reward_id=event.id,
+        #                                                          custom_reward_id=event.reward.id,
+        #                                                          status=False)
 
-def prepare(bot: commands.Bot):
-    bot.add_cog(VIPCog(bot))
+        # elif event.user.id in vips_user_ids:
+        #     print('user is already a VIP')
+        #     # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        #     await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                                          broadcaster_id=self.bot.user_id,
+        #                                                          reward_id=event.id,
+        #                                                          custom_reward_id=event.reward.id,
+        #                                                          status=False)
+
+        # else:
+        #     # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        #     await self.bot._http.post_channel_vip(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                           broadcaster_id=self.bot.user_id,
+        #                                           user_id=event.user.id)
+        #
+        #     # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
+        #     await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+        #                                                          broadcaster_id=self.bot.user_id,
+        #                                                          reward_id=event.id,
+        #                                                          custom_reward_id=event.reward.id,
+        #                                                          status=True)
