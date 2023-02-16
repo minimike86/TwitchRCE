@@ -15,7 +15,7 @@ import settings
 
 class RCECog(commands.Cog):
 
-    def __init__(self, bot: commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
 

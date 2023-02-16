@@ -8,7 +8,7 @@ import settings
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot: commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @commands.Cog.event()
