@@ -9,6 +9,8 @@ EVENTSUB_URI_ENDPOINT = config('EVENTSUB_URI_ENDPOINT')
 CALLBACK_ROUTE = config('CALLBACK_ROUTE')
 
 APP2APP_CLIENT_CREDENTIALS_GRANT_FLOW = config('APP2APP_CLIENT_CREDENTIALS_GRANT_FLOW')
+USER_TOKEN = config('USER_TOKEN')
+
 CHAT_OAUTH_SCOPE = config('CHAT_OAUTH_SCOPE')
 CHAT_OAUTH_ACCESS_TOKEN = config('CHAT_OAUTH_ACCESS_TOKEN')
 
@@ -18,5 +20,5 @@ USER_IMPLICIT_GRANT_FLOW_REFRESH_TOKEN = config('USER_IMPLICIT_GRANT_FLOW_REFRES
 
 INITIAL_CHANNELS = config('INITIAL_CHANNELS').split(',')
 
-CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'man', 'netstat', 'nslookup', 'pwd',
+CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'man', 'netstat', 'nslookup', 'pwd',
                   'top', 'who', 'whoami']

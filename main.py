@@ -1,7 +1,10 @@
 import asyncio
 
 import twitchio
+from twitchio import Channel, PartialUser
 from twitchio.ext import commands, eventsub
+from twitchio.ext.eventsub import StreamOnlineData
+from twitchio.http import TwitchHTTP
 
 from ngrok import ngrok, NgrokClient
 import settings
@@ -69,6 +72,11 @@ class Bot(commands.Bot):
         except twitchio.HTTPException:
             pass
 
+        try:
+            await esclient.subscribe_channel_stream_start(broadcaster=125444292)
+        except twitchio.HTTPException:
+            pass
+
     async def event_ready(self):
         print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
 
@@ -99,5 +107,36 @@ async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData
     print('Received follow event!')
     channel = bot.get_channel('msec')
     await channel.send(f'{payload.data.user.name} followed woohoo!')
+
+
+@esbot.event()
+async def event_eventsub_notification_stream_start(payload: StreamOnlineData) -> None:
+    print(f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
+    # await delete_all_custom_rewards()
+
+    http_client: TwitchHTTP = bot._http
+    http_client.client_id = settings.CLIENT_ID
+    http_client.token = settings.USER_TOKEN
+
+    user: PartialUser = PartialUser(http=http_client, id=125444292, name='msec')
+
+
+    # TODO: if sci & tech then add kill my shell
+    await http_client.create_reward(broadcaster_id=125444292,
+                                    title="Kill My Shell",
+                                    cost=6666,
+                                    prompt="Immediately close any terminal I have open without warning!",
+                                    global_cooldown=5 * 60,
+                                    token=settings.USER_TOKEN)
+
+    # TODO: check for free VIP slots before added
+    await http_client.create_reward(broadcaster_id=125444292,
+                                    title="VIP",
+                                    cost=80085,
+                                    prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
+                                    global_cooldown=5 * 60,
+                                    token=settings.USER_TOKEN)
+
+    await user.channel.send(f'This stream is now online!')
 
 bot.run()

@@ -7,9 +7,9 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 
 ### Environment Variables
 Update the .env file with your IRC and TWITCH API tokens, and your broadcaster ID to use this script:
-* TWITCH_CLIENT_ID=XXXXXX
-* TWITCH_CLIENT_SECRET=XXXXXX
-* TWITCH_CHAT_OAUTH=XXXXXX
+* CLIENT_ID=XXXXXX
+* CLIENT_SECRET=XXXXXX
+* CHAT_OAUTH=XXXXXX
 * CLIENT_ID=XXXXXX
 * ACCESS_TOKEN=XXXXXX
 * REFRESH_TOKEN=XXXXXX

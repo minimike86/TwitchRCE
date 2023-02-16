@@ -15,7 +15,7 @@ import settings
 
 class RCECog(commands.Cog):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Cog):
         self.bot = bot
         self.CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
 
@@ -26,9 +26,14 @@ class RCECog(commands.Cog):
         # print('RCECog: ', message.author.name, message.content)
 
     @commands.command(aliases=['cmd'])
+    # TODO: urizenlux: !exec --help
     async def exec(self, ctx: commands.Context):
+        if ctx.message.content == "!exec --help":
+            await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
+                           This will run (mostly) un-sanitised bash commands on the streamers machine. rm -rf for the win.""")
+
         # only broadcaster can run exec commands
-        if int(ctx.author.id) == self.bot.user_id:
+        elif int(ctx.author.id) == self.bot.user_id:
             # grab the arbitrary bash command(s) without the bot prefix
             cmd = ctx.message.content.replace(f"{self.bot._prefix}{ctx.command.name}", '').strip()
             for alias in ctx.command.aliases:
