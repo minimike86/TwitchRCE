@@ -30,81 +30,86 @@ esclient = eventsub.EventSubClient(client=esbot,
                                    webhook_secret='some_secret_string',
                                    callback_route=f"{eventsub_public_url}")
 
-# Custom bot class
+
 class Bot(commands.Bot):
+    """ Custom twitchio bot class """
     def __init__(self):
         super().__init__(token=settings.USER_TOKEN,
                          prefix='!',
-                         initial_channels=['msec'])
+                         initial_channels=settings.INITIAL_CHANNELS)
 
-        # Load cogs
-        from cogs.rce import RCECog
-        self.add_cog(RCECog(self))
+        """ load commands from cogs """
+        # TODO: fix allow list that 0xtib3rius bypassed :)
+        # from cogs.rce import RCECog  # disabled as 0xtib3rius bypassed allow list lol
+        # self.add_cog(RCECog(self))  # disabled as 0xtib3rius bypassed allow list lol
+
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
 
-    async def __ainit__(self) -> None:
+    async def __esclient_init__(self) -> None:
+        """ start the esclient listening on specified port """
         try:
-            print(f"Starting esclient...")
             loop.create_task(esclient.listen(port=settings.EVENTSUB_URI_PORT))
             print(f"Running EventSub server on [port={settings.EVENTSUB_URI_PORT}]")
         except Exception as e:
             print(e.with_traceback(tb=None))
 
+        """ before registering new event subscriptions remove old event subs """
+        # TODO: make this optional some broadcasters might have pre-configured event subs that this would delete
+        es_subs = await esclient._http.get_subscriptions()
+        print(f"{len(es_subs)} event subs found")
+        for es_sub in es_subs:
+            await esclient._http.delete_subscription(es_sub)
+            print(f"deleting event sub: {es_sub.id}")
+        print(f"deleted all event subs.")
+
         try:
-            await esclient.subscribe_channel_follows(broadcaster=125444292)
+            # create new event subscription for channel follow event
+            await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
         except twitchio.HTTPException:
             pass
 
         try:
-            await esclient.subscribe_channel_stream_start(broadcaster=125444292)
+            await esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
         except twitchio.HTTPException:
             pass
 
     async def event_ready(self):
+        """ Bot is logged into IRC and ready to do its thing. """
         print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
-        # Messages with echo set to True are messages sent by the bot...
-        # For now, we just want to ignore them...
+        """ Messages with echo set to True are messages sent by the bot. ignore them. """
         if message.echo:
             return
-
-        # Print the contents of our message to console...
         print('Bot: ', message.author.name, message.content)  # Print the contents of our message to console...
-
-        # Since we have commands and are overriding the default `event_message`
-        # We must let the bot know we want to handle and invoke our commands...
-        await self.handle_commands(message)
+        await self.handle_commands(message)  # we have commands overriding the default `event_message`
 
     @commands.command()
     async def hello(self, ctx: commands.Context):
+        """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
 
-# init custom bot
-bot = Bot()
-bot.loop.run_until_complete(bot.__ainit__())
 
-# authenticate bots TwitchHTTP client
-http_client: TwitchHTTP = bot._http
+bot = Bot()
+http_client: TwitchHTTP = bot._http  # authenticate bots TwitchHTTP client
 http_client.client_id = settings.CLIENT_ID
 http_client.token = settings.USER_TOKEN
 
-# get broadcasters User object
+
 async def get_broadcaster_user() -> PartialUser:
+    """ get broadcasters User object """
     users = await http_client.get_users(token=settings.USER_TOKEN, ids=[], logins=settings.INITIAL_CHANNELS)
     user_data = list(filter(lambda x: x['login'] in settings.INITIAL_CHANNELS, users))[0]
     return PartialUser(http=http_client, id=user_data['id'], name=user_data['login'])
 broadcaster: PartialUser = loop.run_until_complete(get_broadcaster_user())
 
-@esbot.event()
-async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData) -> None:
-    print('Received follow event!')
-    channel = bot.get_channel('msec')
-    await channel.send(f'{payload.data.user.name} followed woohoo!')
+
+bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
 
 
 async def delete_all_custom_rewards(rewards: Collection, custom_reward_titles: Collection):
+    """ deletes all custom rewards (API limits deletes to those created by the bot) """
     if rewards is not None:
         for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
             await http_client.delete_custom_reward(broadcaster_id=broadcaster.id,
@@ -114,7 +119,15 @@ async def delete_all_custom_rewards(rewards: Collection, custom_reward_titles: C
 
 
 @esbot.event()
+async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData) -> None:
+    """ event triggered when someone follows the channel """
+    print(f'Received follow event! {payload}')
+    await broadcaster.channel.send(f'{payload.data.user.name} followed woohoo!')
+
+
+@esbot.event()
 async def event_eventsub_notification_stream_start(payload: StreamOnlineData) -> None:
+    """ event triggered when stream goes live """
     print(f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
 
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
@@ -125,7 +138,7 @@ async def event_eventsub_notification_stream_start(payload: StreamOnlineData) ->
     print(f"Got rewards: [{json.dumps(rewards)}]")
     await delete_all_custom_rewards(rewards, custom_reward_titles)
 
-    # TODO: if sci & tech then add kill my shell
+    # TODO: if sci & tech category then add kill my shell
     await http_client.create_reward(broadcaster_id=broadcaster.id,
                                     title="Kill My Shell",
                                     cost=6666,
@@ -133,7 +146,7 @@ async def event_eventsub_notification_stream_start(payload: StreamOnlineData) ->
                                     global_cooldown=5 * 60,
                                     token=settings.USER_TOKEN)
 
-    # TODO: check for free VIP slots before added
+    # TODO: check for free VIP slots before adding
     await http_client.create_reward(broadcaster_id=broadcaster.id,
                                     title="VIP",
                                     cost=80085,
