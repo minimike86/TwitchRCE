@@ -31,7 +31,22 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | USER_TOKEN=         | string | *[Get an access token](https://dev.twitch.tv/docs/cli/token-command/)* |
 | INITIAL_CHANNELS=   | string | channel name                                                           |
 
-The RCECog **attempts** to limit commands to a whitelist so update the `settings.py` file to include a comma separated list of linux binaries that you will allow to run:
+### Ngrok Config | [Ngrok Tunnel Definition Docs](https://ngrok.com/docs/ngrok-agent/config#tunnel-definitions)
+* Add a `auth` and `eventsub` tunnel configuration(s) to your `ngrok.yml` file
+
+```
+tunnels:
+  auth:
+    addr: 3000
+    proto: http
+  eventsub:
+    addr: 8080
+    proto: http
+```
+
+### RCECog Allow List
+
+The RCECog **attempts** to limit commands to a allow list so update the `settings.py` file to include a comma separated list of linux binaries that you will allow to run:
 * CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
                   'who', 'whoami']
 
