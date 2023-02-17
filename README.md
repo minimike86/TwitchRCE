@@ -47,7 +47,9 @@ tunnels:
 ### RCECog Allow List
 
 The RCECog **attempts** to limit commands to a allow list so update the `settings.py` file to include a comma separated list of linux binaries that you will allow to run:
-* CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
+```
+CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
                   'who', 'whoami']
+```
 
 Expect some kind of malicious code to make it through if you leave the RCECog enabled! :)
