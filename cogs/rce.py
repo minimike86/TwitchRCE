@@ -26,7 +26,6 @@ class RCECog(commands.Cog):
         # print('RCECog: ', message.author.name, message.content)
 
     @commands.command(aliases=['cmd'])
-    # TODO: urizenlux: !exec --help
     async def exec(self, ctx: commands.Context):
         if ctx.message.content == "!exec --help":
             await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
