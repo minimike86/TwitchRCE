@@ -117,13 +117,13 @@ class RCECog(commands.Cog):
                 result = subprocess.check_output(cmd2, shell=True)
                 result = f"{event.user.name} just killed my shell. " \
                          + f"stdout: {result.decode()}"
-                await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
                                                                      broadcaster_id=500,
                                                                      reward_id=event.id,
                                                                      custom_reward_id=event.reward.id,
                                                                      status=True)
                 print(f"{textwrap.shorten(result, width=500)}")
-                await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+                await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
                                                             broadcaster_id=self.bot.user_id,
                                                             moderator_id='',
                                                             message=f"{textwrap.shorten(result, width=500)}",
@@ -132,13 +132,13 @@ class RCECog(commands.Cog):
             except Exception as err:
                 print(f"something broke {type(err)}", traceback.format_exc())
         else:
-            await self.bot._http.update_reward_redemption_status(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+            await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
                                                                  broadcaster_id=self.bot.user_id,
                                                                  reward_id=event.id,
                                                                  custom_reward_id=event.reward.id,
                                                                  status=False)
             print(f"Unlucky {event.user.name} but there are no terminals open to kill")
-            await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
                                                         broadcaster_id=self.bot.user_id,
                                                         moderator_id='',
                                                         message=f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded",

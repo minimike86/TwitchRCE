@@ -1,6 +1,5 @@
 import twitchio
-from twitchio import PartialUser, Chatter
-from twitchio.ext import commands, pubsub
+from twitchio.ext import commands
 from twitchio.http import TwitchHTTP
 
 import settings
@@ -53,7 +52,7 @@ class VIPCog(commands.Cog):
 
         else:
             # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
-            await http_client.post_channel_vip(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
+            await http_client.post_channel_vip(token=settings.USER_TOKEN,
                                                broadcaster_id=self.bot.user_id,
                                                user_id=event.author.id)
 
