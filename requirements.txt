@@ -10,6 +10,6 @@ multidict==6.0.4
 pyngrok==5.2.1
 python-decouple==3.7
 PyYAML==6.0
-twitchio==2.5.0
+git+https://github.com/TwitchIO/TwitchIO.git@master#egg=twitchio
 typing_extensions==4.5.0
 yarl==1.8.2

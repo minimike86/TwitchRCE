@@ -64,12 +64,25 @@ class Bot(commands.Bot):
         print(f"deleted all event subs.")
 
         try:
-            # create new event subscription for channel follow event
+            """ create new event subscription for channel_follows event"""
             await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
         except twitchio.HTTPException:
             pass
 
         try:
+            """ create new event subscription for channel_subscriptions event """
+            await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
+        except twitchio.HTTPException:
+            pass
+
+        try:
+            """ create new event subscription for channel_raid event """
+            await esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
+        except twitchio.HTTPException:
+            pass
+
+        try:
+            """ create new event subscription for channel_stream_start event """
             await esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
         except twitchio.HTTPException:
             pass
@@ -108,21 +121,49 @@ broadcaster: PartialUser = loop.run_until_complete(get_broadcaster_user())
 bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
 
 
-async def delete_all_custom_rewards(rewards: Collection, custom_reward_titles: Collection):
-    """ deletes all custom rewards (API limits deletes to those created by the bot) """
-    if rewards is not None:
-        for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
-            await http_client.delete_custom_reward(broadcaster_id=broadcaster.id,
-                                                   reward_id=reward["id"],
-                                                   token=settings.USER_TOKEN)
-            print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
-
-
 @esbot.event()
 async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData) -> None:
     """ event triggered when someone follows the channel """
     print(f'Received follow event! {payload}')
     await broadcaster.channel.send(f'{payload.data.user.name} followed woohoo!')
+
+
+@esbot.event()
+async def event_eventsub_notification_subscription(payload: eventsub.NotificationEvent) -> None:
+    """ event triggered when someone subscribes the channel """
+    print(f'Received subscription event! {payload}')
+    channel = await http_client.get_channels(broadcaster_id=payload.data.user.id)
+    clips = await http_client.get_clips(broadcaster_id=payload.data.user.id)
+    if len(clips) >= 1:
+        """ check if sub is a streamer with clips on their channel and shoutout with clip player """
+        await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+        await shoutout(channel=channel[0])
+    else:
+        """ shoutout without clip player """
+        await shoutout(channel=channel[0])
+
+
+async def shoutout(channel: any):
+    """ Post a shoutout message to chat. """
+    await http_client.post_chat_announcement(token=settings.USER_TOKEN,
+                                             broadcaster_id=broadcaster.id,
+                                             message=f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}! "
+                                                     f"They were last playing \'{channel['game_name']}\'.",
+                                             moderator_id=broadcaster.id,  # This ID must match the user ID in the user access token.
+                                             color='purple')  # blue green orange purple primary
+    """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
+        The channel giving a Shoutout must be live. """
+    await broadcaster.shoutout(token=settings.USER_TOKEN,
+                               to_broadcaster_id=channel['broadcaster_id'],
+                               moderator_id=broadcaster.id)
+
+
+
+@esbot.event()
+async def event_eventsub_notification_raid(payload: eventsub.ChannelRaidData) -> None:
+    """ event triggered when someone raids the channel """
+    print(f'Received raid event! {payload}')
+    await broadcaster.channel.send(f'{payload.data.raider.name} raided woohoo!')
 
 
 @esbot.event()
@@ -155,5 +196,15 @@ async def event_eventsub_notification_stream_start(payload: StreamOnlineData) ->
                                     token=settings.USER_TOKEN)
 
     await broadcaster.channel.send(f'This stream is now online!')
+
+
+async def delete_all_custom_rewards(rewards: Collection, custom_reward_titles: Collection):
+    """ deletes all custom rewards (API limits deletes to those created by the bot) """
+    if rewards is not None:
+        for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
+            await http_client.delete_custom_reward(broadcaster_id=broadcaster.id,
+                                                   reward_id=reward["id"],
+                                                   token=settings.USER_TOKEN)
+            print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
 
 bot.run()
