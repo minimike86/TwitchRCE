@@ -7,16 +7,18 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 * `!add_channel_vip` - *Adds user to an available vip slot*
 
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
-* `event_eventsub_notification_follow`
-* `event_eventsub_notification_cheer`
-* `event_eventsub_notification_subscription`
-* `event_eventsub_notification_raid`
-* `event_eventsub_notification_hypetrain_begin`
-* `event_eventsub_notification_hypetrain_end`
-* `event_eventsub_notification_stream_start`
-* `event_eventsub_notification_stream_end`
-* `event_eventsub_notification_channel_shoutout_create`
-* `event_eventsub_notification_channel_shoutout_receive`
+| Event Type                 | Response                                     |
+|----------------------------|----------------------------------------------|
+| *follow*                   | Chat message                                 |
+| *cheer*                    | `**NOT IMPLEMENTED**`                        |
+| *subscription*             | Shoutout & Chat message                      |
+| *raid*                     | Shoutout & Chat message                      |
+| *hypetrain_begin*          | `**NOT IMPLEMENTED**`                        |
+| *hypetrain_end*            | `**NOT IMPLEMENTED**`                        |
+| *stream_start*             | Creates channel point rewards & Chat message |
+| *stream_end*               | `**NOT IMPLEMENTED**`                        |
+| *channel_shoutout_create*  | `**NOT IMPLEMENTED**`                        |
+| *channel_shoutout_receive* | `**NOT IMPLEMENTED**`                        |
 
 ### Environment Variables
 * [Create an `.env` file](https://dev.to/jakewitcher/using-env-files-for-environment-variables-in-python-applications-55a1) with your TWITCH API tokens and your channel name to use this script:
