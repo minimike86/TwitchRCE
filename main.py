@@ -189,38 +189,50 @@ async def event_eventsub_notification_stream_start(payload: StreamOnlineData) ->
     print(f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
 
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
-    custom_reward_titles = ["Kill My Shell", "VIP"]
-    rewards = await http_client.get_rewards(broadcaster_id=broadcaster.id,
-                                            only_manageable=True,
-                                            token=settings.USER_TOKEN)
-    print(f"Got rewards: [{json.dumps(rewards)}]")
-    await delete_all_custom_rewards(rewards, custom_reward_titles)
+    await delete_all_custom_rewards()
 
-    # TODO: if sci & tech category then add kill my shell
-    await http_client.create_reward(broadcaster_id=broadcaster.id,
-                                    title="Kill My Shell",
-                                    cost=6666,
-                                    prompt="Immediately close any terminal I have open without warning!",
-                                    global_cooldown=5 * 60,
-                                    token=settings.USER_TOKEN)
-
-    # TODO: check for free VIP slots before adding
-    await http_client.create_reward(broadcaster_id=broadcaster.id,
-                                    title="VIP",
-                                    cost=80085,
-                                    prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
-                                    global_cooldown=5 * 60,
-                                    token=settings.USER_TOKEN)
+    # Add new custom rewards
+    await add_kill_my_shell_redemption_reward()
+    await add_vip_auto_redemption_reward()
 
     await broadcaster.channel.send(f'This stream is now online!')
 
 
-# TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
+async def add_kill_my_shell_redemption_reward():
+    """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
+    channel = await http_client.get_channels(broadcaster_id=broadcaster.id)
+    if channel[0]['game_id'] in [509670, 1469308723]:  # Science & Technology, Software and Game Development
+        await http_client.create_reward(broadcaster_id=broadcaster.id,
+                                        title="Kill My Shell",
+                                        cost=6666,
+                                        prompt="Immediately closes the last terminal window that was opened without warning!",
+                                        global_cooldown=5 * 60,
+                                        token=settings.USER_TOKEN)
 
 
-async def delete_all_custom_rewards(rewards: Collection, custom_reward_titles: Collection):
+async def add_vip_auto_redemption_reward():
+    """ Adds channel point redemption that adds the user to the VIP list automatically """
+    vips = await http_client.get_channel_vips(token=settings.USER_TOKEN,
+                                              broadcaster_id=broadcaster.id,
+                                              first=100)
+    if len(vips.data) < settings.MAX_VIP_SLOTS:
+        await http_client.create_reward(broadcaster_id=broadcaster.id,
+                                        title="VIP",
+                                        cost=80085,
+                                        prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
+                                        max_per_user=1,
+                                        global_cooldown=5 * 60,
+                                        token=settings.USER_TOKEN)
+
+
+async def delete_all_custom_rewards():
     """ deletes all custom rewards (API limits deletes to those created by the bot) """
+    rewards = await http_client.get_rewards(broadcaster_id=broadcaster.id,
+                                            only_manageable=True,
+                                            token=settings.USER_TOKEN)
+    print(f"Got rewards: [{json.dumps(rewards)}]")
     if rewards is not None:
+        custom_reward_titles = ["Kill My Shell", "VIP"]
         for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
             await http_client.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                    reward_id=reward["id"],
@@ -243,5 +255,9 @@ async def shoutout(channel: any, color: str):
         await broadcaster.shoutout(token=settings.USER_TOKEN,
                                    to_broadcaster_id=channel['broadcaster_id'],
                                    moderator_id=broadcaster.id)
+
+
+# TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
+
 
 bot.run()
