@@ -124,8 +124,8 @@ bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscrip
 @esbot.event()
 async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData) -> None:
     """ event triggered when someone follows the channel """
-    print(f'Received follow event! {payload}')
-    await broadcaster.channel.send(f'{payload.data.user.name} followed woohoo!')
+    print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
+    await broadcaster.channel.send(f'Thank you {payload.data.user.name} for following the channel!')
 
 
 @esbot.event()
