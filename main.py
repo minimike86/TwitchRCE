@@ -40,8 +40,8 @@ class Bot(commands.Bot):
 
         """ load commands from cogs """
         # TODO: fix allow list that 0xtib3rius bypassed :)
-        # from cogs.rce import RCECog  # disabled as 0xtib3rius bypassed allow list lol
-        # self.add_cog(RCECog(self))  # disabled as 0xtib3rius bypassed allow list lol
+        from cogs.rce import RCECog  # disabled as 0xtib3rius bypassed allow list lol
+        self.add_cog(RCECog(self))  # disabled as 0xtib3rius bypassed allow list lol
 
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
@@ -215,7 +215,7 @@ async def add_vip_auto_redemption_reward():
     vips = await http_client.get_channel_vips(token=settings.USER_TOKEN,
                                               broadcaster_id=broadcaster.id,
                                               first=100)
-    if len(vips.data) < settings.MAX_VIP_SLOTS:
+    if len(vips) < settings.MAX_VIP_SLOTS:
         await http_client.create_reward(broadcaster_id=broadcaster.id,
                                         title="VIP",
                                         cost=80085,
@@ -257,6 +257,7 @@ async def shoutout(channel: any, color: str):
                                    moderator_id=broadcaster.id)
 
 
+# TODO: add chatgpt commands https://github.com/openai/openai-python
 # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
 
 

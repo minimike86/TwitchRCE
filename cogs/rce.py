@@ -1,4 +1,5 @@
 import re
+import shlex
 import traceback
 import textwrap
 
@@ -17,7 +18,6 @@ class RCECog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.CMD_REGEX = r"^[a-zA-Z]+(?!=\s)"
 
     @commands.Cog.event()
     async def event_message(self, message: twitchio.Message):
@@ -34,9 +34,9 @@ class RCECog(commands.Cog):
         # only broadcaster can run exec commands
         elif int(ctx.author.id) == self.bot.user_id:
             # grab the arbitrary bash command(s) without the bot prefix
-            cmd = ctx.message.content.replace(f"{self.bot._prefix}{ctx.command.name}", '').strip()
+            cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
             for alias in ctx.command.aliases:
-                cmd = cmd.replace(f"{self.bot._prefix}{alias}", '').strip()
+                cmd = re.sub(fr'^{self.bot._prefix}{alias}', '', ctx.message.content).strip()
 
             # strip operators
             operators = ['>>', '>', '&&', '&', ';', '..']
@@ -49,71 +49,73 @@ class RCECog(commands.Cog):
             try:
                 proc: subprocess = None
                 if '|' in cmd:
+                    """ if input has pipes split input and pass first stdout into second command stdin """
                     cmd1, cmd2 = [x.strip() for x in cmd.split('|')]
-                    command1 = re.match(self.CMD_REGEX, cmd1).group(0)
-                    command2 = re.fullmatch(self.CMD_REGEX, cmd2)
-                    if command1 in settings.CMD_ALLOW_LIST and command2 in settings.CMD_ALLOW_LIST:
-                        proc1 = Popen(cmd1, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-                        proc = Popen(cmd2, shell=True, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
+                    command1 = shlex.split(cmd1)
+                    command2 = shlex.split(cmd2)
+                    pass
+                    if command1[0] in settings.CMD_ALLOW_LIST and command2[0] == 'grep':
+                        proc1 = Popen(command1[:4], shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                        proc = Popen(command2[:4], shell=False, stdin=proc1.stdout, stdout=PIPE, stderr=PIPE)
                         proc1.stdout.close()
                 else:
-                    command = re.match(self.CMD_REGEX, cmd).group(0)
-                    if command in settings.CMD_ALLOW_LIST:
-                        proc = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                    """ if input has no pipes run the command """
+                    command = shlex.split(cmd)
+                    pass
+                    if command[0] in settings.CMD_ALLOW_LIST:
+                        proc = Popen(command, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+
                 try:
+                    """ see if the process ran and return responses """
                     if proc is not None:
                         stdout, stderr = proc.communicate(timeout=5)
-                        # stdout
                         if len(stdout.decode()) > 0:
+                            """ post the stdout to chat """
                             stdout = f'stdout: {stdout.decode()}'
-                            await ctx.channel.send(content=stdout)
-                            # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
-                            # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
-                            #                                             broadcaster_id=self.bot.user_id,
-                            #                                             moderator_id='',
-                            #                                             message=f"{textwrap.shorten(stdout, width=500)}",
-                            #                                             color="green")
-
-                        # stderr
+                            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                        broadcaster_id=self.bot.user_id,
+                                                                        moderator_id=self.bot.user_id,
+                                                                        message=f"{textwrap.shorten(stdout, width=500)}",
+                                                                        color="green")
+                            # await ctx.channel.send(content=stdout)
                         if len(stderr.decode()) > 0:
+                            """ post the stderr to chat """
                             stderr = f'stderr: {stderr.decode()}'
-                            await ctx.send(content=stderr)
-                            # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
-                            # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
-                            #                                             broadcaster_id=self.bot.user_id,
-                            #                                             moderator_id='',
-                            #                                             message=f"{textwrap.shorten(stderr, width=500)}",
-                            #                                             color="orange")
+                            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                        broadcaster_id=self.bot.user_id,
+                                                                        moderator_id=self.bot.user_id,
+                                                                        message=f"{textwrap.shorten(stderr, width=500)}",
+                                                                        color="orange")
+                            # await ctx.send(content=stderr)
 
                     else:
-                        # cmd not in allow list
-                        error_msg = f'Nice try but the command(s) in `{cmd}` are not in the allow list!'
-                        await ctx.send(content=error_msg)
-                        # TODO: twitchio.errors.Unauthorized: You're not authorized to use this route.
-                        # await self.bot._http.post_chat_announcement(token=settings.CHAT_OAUTH_ACCESS_TOKEN,
-                        #                                             broadcaster_id=self.bot.user_id,
-                        #                                             moderator_id='',
-                        #                                             message=f"{textwrap.shorten(error_msg, width=500)}",
-                        #                                             color="orange")
+                        """ post message to chat informing they tried to run a command that wasn't in the allow list """
+                        error_msg = f'Nice try {ctx.author.display_name} but the command(s) in `{cmd}` are not in the allow list!'
+                        await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                    broadcaster_id=self.bot.user_id,
+                                                                    moderator_id=self.bot.user_id,
+                                                                    message=f"{textwrap.shorten(error_msg, width=500)}",
+                                                                    color="orange")
+                        # await ctx.send(content=error_msg)
 
                 except TimeoutError:
                     await ctx.send('TimeoutError occurred')
                 except CancelledError:
                     await ctx.send('CancelledError occurred')
                 finally:
-                    pass
-                    # if proc is not None:
-                    #     os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    if proc is not None:
+                        proc.terminate()
+                        # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)  # nuclear option
             except RuntimeError:
                 await ctx.send('An exception occurred')
 
     async def killmyshell(self, event: pubsub.PubSubChannelPointsMessage):
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
-        proc_id = subprocess.check_output(cmd1, shell=True).decode().split(" ")[0].strip()
+        proc_id = subprocess.check_output(cmd1, shell=False).decode().split(" ")[0].strip()
         if proc_id != "":
             try:
                 cmd2 = f"xkill -id {proc_id}"
-                result = subprocess.check_output(cmd2, shell=True)
+                result = subprocess.check_output(cmd2, shell=False)
                 result = f"{event.user.name} just killed my shell. " \
                          + f"stdout: {result.decode()}"
                 await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
@@ -124,7 +126,7 @@ class RCECog(commands.Cog):
                 print(f"{textwrap.shorten(result, width=500)}")
                 await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
                                                             broadcaster_id=self.bot.user_id,
-                                                            moderator_id='',
+                                                            moderator_id=self.bot.user_id,
                                                             message=f"{textwrap.shorten(result, width=500)}",
                                                             color="green")
 
@@ -139,6 +141,6 @@ class RCECog(commands.Cog):
             print(f"Unlucky {event.user.name} but there are no terminals open to kill")
             await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
                                                         broadcaster_id=self.bot.user_id,
-                                                        moderator_id='',
+                                                        moderator_id=self.bot.user_id,
                                                         message=f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded",
                                                         color="purple")
