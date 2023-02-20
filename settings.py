@@ -12,5 +12,4 @@ USER_TOKEN = config('USER_TOKEN')
 INITIAL_CHANNELS = config('INITIAL_CHANNELS').split(',')
 MAX_VIP_SLOTS = config('MAX_VIP_SLOTS')
 
-CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'man', 'netstat', 'nslookup', 'pwd',
-                  'top', 'who', 'whoami']
+CMD_ALLOW_LIST = ['aux', 'cat', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'netstat', 'nslookup', 'ping', 'pwd', 'which', 'who', 'whoami']
