@@ -10,6 +10,6 @@ APP_TOKEN = config('APP_TOKEN')
 USER_TOKEN = config('USER_TOKEN')
 
 INITIAL_CHANNELS = config('INITIAL_CHANNELS').split(',')
-MAX_VIP_SLOTS = config('MAX_VIP_SLOTS')
+MAX_VIP_SLOTS = int(config('MAX_VIP_SLOTS', default=10))
 
 CMD_ALLOW_LIST = ['aux', 'cat', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'netstat', 'nslookup', 'ping', 'pwd', 'which', 'who', 'whoami']
