@@ -1,11 +1,9 @@
 import asyncio
 import json
-from typing import Collection
 
 import twitchio
 from twitchio import PartialUser
 from twitchio.ext import commands, eventsub
-from twitchio.ext.eventsub import StreamOnlineData
 from twitchio.http import TwitchHTTP
 
 from ngrok import NgrokClient
@@ -17,6 +15,8 @@ asyncio.set_event_loop(loop)
 
 # Start a ngrok client as all inbound event subscriptions need a public facing IP address and can handle https traffic.
 ngrok_client = NgrokClient(loop=loop)
+
+
 async def ngrok_start() -> (str, str):
     return await ngrok_client.start()
 auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
@@ -66,6 +66,12 @@ class Bot(commands.Bot):
         try:
             """ create new event subscription for channel_follows event"""
             await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
+        except twitchio.HTTPException:
+            pass
+
+        try:
+            """ create new event subscription for subscribe_channel_cheers event """
+            await esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
         except twitchio.HTTPException:
             pass
 
@@ -122,10 +128,44 @@ bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscrip
 
 
 @esbot.event()
-async def event_eventsub_notification_follow(payload: eventsub.ChannelFollowData) -> None:
+async def event_eventsub_notification_follow(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone follows the channel """
     print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
     await broadcaster.channel.send(f'Thank you {payload.data.user.name} for following the channel!')
+
+
+@esbot.event()
+async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent) -> None:
+    """ event triggered when someone cheers in the channel """
+    event_string = ""
+    if payload.data.is_anonymous:
+        event_string = f"Received cheer event from anonymous, " \
+                       f"cheered {payload.data.bits} bits, " \
+                       f"message '{payload.data.message}'."
+    else:
+        event_string = f"Received cheer event from {payload.data.user.name} [{payload.data.user.id}], " \
+                       f"cheered {payload.data.bits} bits, " \
+                       f"message '{payload.data.message}'."
+    print(event_string)
+    # create stream marker (Stream markers cannot be created when the channel is offline)
+    streams = await http_client.get_streams(user_ids=[broadcaster.id])
+    if len(streams) >= 1 and streams[0].type == 'live':
+        await broadcaster.create_marker(token=settings.USER_TOKEN,
+                                        description=event_string)
+    if not payload.data.is_anonymous:
+        # Get cheerer info
+        channel = await http_client.get_channels(broadcaster_id=payload.data.user.id)
+        clips = await http_client.get_clips(broadcaster_id=payload.data.user.id)
+        # Acknowledge raid and reply with a channel bio
+        await broadcaster.channel.send(f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!")
+        # shoutout the subscriber
+        if len(clips) >= 1:
+            """ check if sub is a streamer with clips on their channel and shoutout with clip player """
+            await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+            await shoutout(channel=channel[0], color='green')
+        else:
+            """ shoutout without clip player """
+            await shoutout(channel=channel[0], color='green')
 
 
 @esbot.event()
@@ -184,7 +224,7 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
 
 
 @esbot.event()
-async def event_eventsub_notification_stream_start(payload: StreamOnlineData) -> None:
+async def event_eventsub_notification_stream_start(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when stream goes live """
     print(f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
 
