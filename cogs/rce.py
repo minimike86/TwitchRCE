@@ -27,12 +27,15 @@ class RCECog(commands.Cog):
 
     @commands.command(aliases=['cmd'])
     async def exec(self, ctx: commands.Context):
+        # get channel broadcaster
+        broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
+
         if ctx.message.content == "!exec --help":
             await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
                            This will run (mostly) un-sanitised bash commands on the streamers machine. rm -rf for the win.""")
 
         # only broadcaster can run exec commands
-        elif int(ctx.author.id) == self.bot.user_id:
+        elif int(ctx.author.id) == int(broadcaster[0]['id']):
             # grab the arbitrary bash command(s) without the bot prefix
             cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
             for alias in ctx.command.aliases:
@@ -73,41 +76,41 @@ class RCECog(commands.Cog):
                             """ post the stdout to chat """
                             stdout = f'stdout: {stdout.decode()}'
                             await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                        broadcaster_id=self.bot.user_id,
+                                                                        broadcaster_id=broadcaster[0]['id'],
                                                                         moderator_id=self.bot.user_id,
                                                                         message=f"{textwrap.shorten(stdout, width=500)}",
                                                                         color="green")
-                            # await ctx.channel.send(content=stdout)
+                            await ctx.channel.send(content=stdout)
                         if len(stderr.decode()) > 0:
                             """ post the stderr to chat """
                             stderr = f'stderr: {stderr.decode()}'
                             await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                        broadcaster_id=self.bot.user_id,
+                                                                        broadcaster_id=broadcaster[0]['id'],
                                                                         moderator_id=self.bot.user_id,
                                                                         message=f"{textwrap.shorten(stderr, width=500)}",
                                                                         color="orange")
-                            # await ctx.send(content=stderr)
+                            await ctx.channel.send(content=stderr)
 
                     else:
                         """ post message to chat informing they tried to run a command that wasn't in the allow list """
                         error_msg = f'Nice try {ctx.author.display_name} but the command(s) in `{cmd}` are not in the allow list!'
                         await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                    broadcaster_id=self.bot.user_id,
+                                                                    broadcaster_id=broadcaster[0]['id'],
                                                                     moderator_id=self.bot.user_id,
                                                                     message=f"{textwrap.shorten(error_msg, width=500)}",
                                                                     color="orange")
-                        # await ctx.send(content=error_msg)
+                        await ctx.channel.send(content=error_msg)
 
                 except TimeoutError:
-                    await ctx.send('TimeoutError occurred')
+                    await ctx.channel.send('TimeoutError occurred')
                 except CancelledError:
-                    await ctx.send('CancelledError occurred')
+                    await ctx.channel.send('CancelledError occurred')
                 finally:
                     if proc is not None:
                         proc.terminate()
                         # os.killpg(os.getpgid(proc.pid), signal.SIGTERM)  # nuclear option
             except RuntimeError:
-                await ctx.send('An exception occurred')
+                await ctx.channel.send('An exception occurred')
 
     async def killmyshell(self, event: pubsub.PubSubChannelPointsMessage):
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
