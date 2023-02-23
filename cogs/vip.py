@@ -18,6 +18,8 @@ class VIPCog(commands.Cog):
 
     @commands.command()
     async def add_channel_vip(self, event: commands.Context):
+        # TODO: figure out correct type of event and pass correct object to update_reward_redemption_status()
+
         # Get list of channel mods
         mods = await self.bot._http.get_channel_moderators(token=settings.USER_TOKEN,
                                                            broadcaster_id=self.bot.user_id)
