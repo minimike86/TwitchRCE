@@ -41,6 +41,7 @@ class ThreadingTCPServerWithStop(socketserver.ThreadingTCPServer):
 
     def server_bind(self):
         self.stop = False
+        self.code = ""
         super().server_bind()
 
     def serve_forever(self, poll_interval=0.1):
