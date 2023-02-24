@@ -165,7 +165,9 @@ async def get_initial_channel_broadcasters() -> List[PartialUser]:
     user_data = await http_client.get_users(token=settings.USER_TOKEN, ids=[], logins=settings.INITIAL_CHANNELS)
     broadcasters: List[PartialUser] = []
     for user in user_data:
-        broadcasters.append(PartialUser(http=http_client, id=user['id'], name=user['login']))
+        # TODO: add channel info to partialuser
+        broadcaster = await PartialUser(http=http_client, id=user['id'], name=user['login']).fetch()
+        broadcasters.append(broadcaster)
     return broadcasters
 channel_broadcasters: List[PartialUser] = loop.run_until_complete(get_initial_channel_broadcasters())
 
@@ -177,7 +179,13 @@ bot.loop.run_until_complete(bot.__esclient_init__(channel_broadcasters))  # star
 async def event_eventsub_notification_follow(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone follows the channel """
     print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
-    await payload.data.broadcaster.channel.send(f'Thank you {payload.data.user.name} for following the channel!')
+    await bot.get_channel(payload.data.broadcaster.name).send(f'Thank you {payload.data.user.name} for following the channel!')
+
+
+@esbot.event()
+async def kill_everyone():
+    """ invoke skynet """
+    pass
 
 
 @esbot.event()
@@ -203,11 +211,11 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
         channel = await http_client.get_channels(broadcaster_id=payload.data.user.id)
         clips = await http_client.get_clips(broadcaster_id=payload.data.user.id)
         # Acknowledge raid and reply with a channel bio
-        await payload.data.broadcaster.channel.send(f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!")
+        await bot.get_channel(payload.data.broadcaster.name).send(f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!")
         # shoutout the subscriber
         if len(clips) >= 1:
             """ check if sub is a streamer with clips on their channel and shoutout with clip player """
-            await payload.data.broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+            await bot.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
             await shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
         else:
             """ shoutout without clip player """
@@ -221,7 +229,7 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
           f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
     # create stream marker (Stream markers cannot be created when the channel is offline)
     streams = await http_client.get_streams(user_ids=[payload.data.broadcaster.id])
-    if len(streams) >= 1 and streams[0].type == 'live':
+    if len(streams) >= 1 and streams[0]['type'] == 'live':
         await payload.data.broadcaster.create_marker(token=settings.USER_TOKEN,
                                                      description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
                                                                  f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
@@ -229,11 +237,12 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     channel = await http_client.get_channels(broadcaster_id=payload.data.user.id)
     clips = await http_client.get_clips(broadcaster_id=payload.data.user.id)
     # Acknowledge raid and reply with a channel bio
-    await payload.data.broadcaster.channel.send(f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} subscription!")
+    if len(channel) >= 1:
+        await bot.get_channel(payload.data.broadcaster.name).send(f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} subscription!")
     # shoutout the subscriber
     if len(clips) >= 1:
         """ check if sub is a streamer with clips on their channel and shoutout with clip player """
-        await payload.data.broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+        await bot.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
         await shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
     else:
         """ shoutout without clip player """
@@ -245,28 +254,29 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
     """ event triggered when someone raids the channel """
     print(f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
           f"with {payload.data.viewer_count} viewers!")
+    broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, channel_broadcasters))[0]
     # create stream marker (Stream markers cannot be created when the channel is offline)
-    streams = await http_client.get_streams(user_ids=[payload.data.broadcaster.id])
-    if len(streams) >= 1 and streams[0].type == 'live':
-        await payload.data.broadcaster.create_marker(token=settings.USER_TOKEN,
-                                                     description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-                                                                 f"with {payload.data.viewer_count} viewers!")
+    streams = await http_client.get_streams(user_ids=[payload.data.reciever.id])
+    if len(streams) >= 1 and streams[0]['type'] == 'live':
+        await broadcaster.create_marker(token=settings.USER_TOKEN,
+                                        description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
+                                                    f"with {payload.data.viewer_count} viewers!")
     # Get raider info
     channel = await http_client.get_channels(broadcaster_id=payload.data.raider.id)
     clips = await http_client.get_clips(broadcaster_id=payload.data.raider.id)
     # Acknowledge raid and reply with a channel bio
-    broadcaster_user = await http_client.get_users(ids=[payload.data.broadcaster.id], logins=[])
-    await payload.data.broadcaster.channel.send(f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
-                                                f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
-                                                f"My name is {broadcaster_user[0]['display_name']}, {broadcaster_user[0]['description']}")
+    broadcaster_user = await http_client.get_users(ids=[payload.data.reciever.id], logins=[])
+    await broadcaster.channel.send(f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
+                                   f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
+                                   f"My name is {broadcaster_user[0]['display_name']}, {broadcaster_user[0]['description']}")
     # shoutout the raider
     if len(clips) >= 1:
         """ check if raider is a streamer with clips on their channel and shoutout with clip player """
-        await payload.data.broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
-        await shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='orange')
+        await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+        await shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
     else:
         """ shoutout without clip player """
-        await shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='orange')
+        await shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
 
 
 @esbot.event()
@@ -328,6 +338,7 @@ async def delete_all_custom_rewards(broadcaster: PartialUser):
 
 async def shoutout(broadcaster: PartialUser, channel: any, color: str):
     """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
+    # TODO: handle blank game_name
     await http_client.post_chat_announcement(token=settings.USER_TOKEN,
                                              broadcaster_id=broadcaster.id,
                                              message=f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}! "
@@ -337,7 +348,7 @@ async def shoutout(broadcaster: PartialUser, channel: any, color: str):
     """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
         The channel giving a Shoutout must be live. """
     streams = await http_client.get_streams(user_ids=[broadcaster.id])
-    if len(streams) >= 1 and streams[0].type == 'live':
+    if len(streams) >= 1 and streams[0]['type'] == 'live':
         await broadcaster.shoutout(token=settings.USER_TOKEN,
                                    to_broadcaster_id=channel['broadcaster_id'],
                                    moderator_id=broadcaster.id)
