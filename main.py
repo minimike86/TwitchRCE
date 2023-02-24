@@ -4,11 +4,11 @@ import logging
 import socket
 from typing import List
 
+from custombot import Bot
 from threading_tcp_server_with_stop import ThreadingTCPServerWithStop, CodeHandler
 
 from twitch_implicit_grant_flow import TwitchImplicitGrantFlow
 
-import twitchio
 from twitchio import PartialUser, errors
 from twitchio.ext import commands, eventsub
 from twitchio.http import TwitchHTTP, logger
@@ -37,91 +37,11 @@ esclient = eventsub.EventSubClient(client=esbot,
                                    webhook_secret='some_secret_string',
                                    callback_route=f"{eventsub_public_url}")
 
-
-class Bot(commands.Bot):
-    """ Custom twitchio bot class """
-    def __init__(self):
-        super().__init__(token=settings.USER_TOKEN,
-                         prefix='!',
-                         initial_channels=settings.INITIAL_CHANNELS)
-
-        """ load commands from cogs """
-        # TODO: fix allow list that 0xtib3rius bypassed :)
-        from cogs.rce import RCECog  # disabled as 0xtib3rius bypassed allow list lol
-        self.add_cog(RCECog(self))  # disabled as 0xtib3rius bypassed allow list lol
-
-        from cogs.vip import VIPCog
-        self.add_cog(VIPCog(self))
-
-    async def __esclient_init__(self, channel_broadcasters: List[PartialUser]) -> None:
-        """ start the esclient listening on specified port """
-        try:
-            loop.create_task(esclient.listen(port=settings.EVENTSUB_URI_PORT))
-            print(f"Running EventSub server on [port={settings.EVENTSUB_URI_PORT}]")
-        except Exception as e:
-            print(e.with_traceback(tb=None))
-
-        """ before registering new event subscriptions remove old event subs """
-        # TODO: make this optional some broadcasters might have pre-configured event subs that this would delete
-        es_subs = await esclient._http.get_subscriptions()
-        print(f"{len(es_subs)} event subs found")
-        for es_sub in es_subs:
-            await esclient._http.delete_subscription(es_sub)
-            print(f"deleting event sub: {es_sub.id}")
-        print(f"deleted all event subs.")
-
-        for broadcaster in channel_broadcasters:
-
-            try:
-                """ create new event subscription for channel_follows event"""
-                await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
-            except twitchio.HTTPException:
-                pass
-
-            try:
-                """ create new event subscription for subscribe_channel_cheers event """
-                await esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
-            except twitchio.HTTPException:
-                pass
-
-            try:
-                """ create new event subscription for channel_subscriptions event """
-                await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
-            except twitchio.HTTPException:
-                pass
-
-            try:
-                """ create new event subscription for channel_raid event """
-                await esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
-            except twitchio.HTTPException:
-                pass
-
-            try:
-                """ create new event subscription for channel_stream_start event """
-                await esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
-            except twitchio.HTTPException:
-                pass
-
-    async def event_ready(self):
-        """ Bot is logged into IRC and ready to do its thing. """
-        print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
-
-    async def event_message(self, message: twitchio.Message):
-        """ Messages with echo set to True are messages sent by the bot. ignore them. """
-        if message.echo:
-            return
-        print('Bot: ', message.author.name, message.content)  # Print the contents of our message to console...
-        await self.handle_commands(message)  # we have commands overriding the default `event_message`
-
-    @commands.command()
-    async def hello(self, ctx: commands.Context):
-        """ type !hello to say hello to author """
-        await ctx.send(f'Hello {ctx.author.name}!')
-
-
 bot = Bot()
 http_client: TwitchHTTP = bot._http  # authenticate bots TwitchHTTP client
 http_client.client_id = settings.CLIENT_ID
+http_client.client_secret = settings.CLIENT_SECRET
+http_client.app_token = settings.APP_TOKEN
 
 
 async def validate_token() -> any:
@@ -137,7 +57,7 @@ async def validate_token() -> any:
                             f"&redirect_uri=http://localhost:3000/auth" \
                             f"&response_type=code" \
                             f"&scope={scope.replace(' ', '%20')}" \
-                            f"&state={'crsf'}"
+                            f"&state={'csrf'}"  # TODO: generate actual csrf token
         print("Launching auth site:", authorization_url)
 
         logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -155,24 +75,21 @@ async def validate_token() -> any:
         settings.USER_TOKEN = token['access_token']
         settings.REFRESH_TOKEN = token['refresh_token']
 
-valid = bot.loop.run_until_complete(validate_token())
-if valid:
-    http_client.token = settings.USER_TOKEN
+bot.loop.run_until_complete(validate_token())
+http_client.token = settings.USER_TOKEN
 
 
 async def get_initial_channel_broadcasters() -> List[PartialUser]:
     """ get broadcasters User objects for every INITIAL_CHANNELS """
-    user_data = await http_client.get_users(token=settings.USER_TOKEN, ids=[], logins=settings.INITIAL_CHANNELS)
+    user_data = await http_client.get_users(token=http_client.token, ids=[], logins=settings.INITIAL_CHANNELS)
     broadcasters: List[PartialUser] = []
     for user in user_data:
-        # TODO: add channel info to partialuser
-        broadcaster = await PartialUser(http=http_client, id=user['id'], name=user['login']).fetch()
-        broadcasters.append(broadcaster)
+        broadcasters.append(await PartialUser(http=http_client, id=user['id'], name=user['login']).fetch())
     return broadcasters
 channel_broadcasters: List[PartialUser] = loop.run_until_complete(get_initial_channel_broadcasters())
 
 
-bot.loop.run_until_complete(bot.__esclient_init__(channel_broadcasters))  # start the event subscription client
+bot.loop.run_until_complete(bot.__esclient_init__(esclient=esclient, channel_broadcasters=channel_broadcasters))  # start the event subscription client
 
 
 @esbot.event()
@@ -291,7 +208,9 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
     await add_kill_my_shell_redemption_reward(payload.data.broadcaster)
     await add_vip_auto_redemption_reward(payload.data.broadcaster)
 
-    await payload.data.broadcaster.channel.send(f'This stream is now online!')
+    # GET THE CHANNEL DATA BECAUSE TWITCHIO IS A PIECE OF FUCKING SHIT
+    channel = await http_client.get_channels(broadcaster_id=payload.data.broadcaster.id)
+    await channel.send(f'This stream is now online!')
 
 
 async def add_kill_my_shell_redemption_reward(broadcaster: PartialUser):
