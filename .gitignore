@@ -128,3 +128,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 /scopes.txt
+/test_main.py
+/twitchrce.sqlite

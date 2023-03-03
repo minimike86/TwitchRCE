@@ -1,18 +1,17 @@
-from typing import List
-
 import twitchio
-from twitchio import PartialUser
-from twitchio.ext import commands
+from twitchio.ext import commands, eventsub
 
 import settings
+from db.database import Database
 
 
 class Bot(commands.Bot):
     """ Custom twitchio bot class """
-    def __init__(self):
-        super().__init__(token=settings.USER_TOKEN,
+    def __init__(self, user_token: str, initial_channels: list[str], db: Database):
+        super().__init__(token=user_token,
                          prefix='!',
-                         initial_channels=settings.INITIAL_CHANNELS)
+                         initial_channels=initial_channels)
+        self.db = db
 
         """ load commands from cogs """
         from cogs.rce import RCECog
@@ -21,7 +20,7 @@ class Bot(commands.Bot):
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
 
-    async def __esclient_init__(self, esclient, channel_broadcasters: List[PartialUser]) -> None:
+    async def __esclient_init__(self, esclient: eventsub.EventSubClient, database: Database) -> None:
         """ start the esclient listening on specified port """
         try:
             self.loop.create_task(esclient.listen(port=settings.EVENTSUB_URI_PORT))
@@ -31,42 +30,45 @@ class Bot(commands.Bot):
 
         """ before registering new event subscriptions remove old event subs """
         # TODO: make this optional some broadcasters might have pre-configured event subs that this would delete
-        es_subs = await esclient._http.get_subscriptions()
-        print(f"{len(es_subs)} event subs found")
-        for es_sub in es_subs:
-            await esclient._http.delete_subscription(es_sub)
-            print(f"deleting event sub: {es_sub.id}")
-        print(f"deleted all event subs.")
+        data = database.fetch_all_users()
+        for broadcaster in data:
+            print(broadcaster)
+            esclient._http.__init__(client=esclient, token=broadcaster['access_token'])
 
-        for broadcaster in channel_broadcasters:
+            es_subs = await esclient._http.get_subscriptions()
+            print(f"{len(es_subs)} event subs found")
+            for es_sub in es_subs:
+                await esclient._http.delete_subscription(es_sub)
+                print(f"deleting event sub: {es_sub.id}")
+            print(f"deleted all event subs.")
 
             try:
                 """ create new event subscription for channel_follows event"""
-                await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
+                await esclient.subscribe_channel_follows(broadcaster=broadcaster['broadcaster_id'])
             except twitchio.HTTPException:
                 pass
 
             try:
                 """ create new event subscription for subscribe_channel_cheers event """
-                await esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
+                await esclient.subscribe_channel_cheers(broadcaster=broadcaster['broadcaster_id'])
             except twitchio.HTTPException:
                 pass
 
             try:
                 """ create new event subscription for channel_subscriptions event """
-                await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
+                await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster['broadcaster_id'])
             except twitchio.HTTPException:
                 pass
 
             try:
                 """ create new event subscription for channel_raid event """
-                await esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
+                await esclient.subscribe_channel_raid(to_broadcaster=broadcaster['broadcaster_id'])
             except twitchio.HTTPException:
                 pass
 
             try:
                 """ create new event subscription for channel_stream_start event """
-                await esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
+                await esclient.subscribe_channel_stream_start(broadcaster=broadcaster['broadcaster_id'])
             except twitchio.HTTPException:
                 pass
 

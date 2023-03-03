@@ -7,18 +7,22 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 * `!add_channel_vip` - *Adds user to an available vip slot*
 
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
-| Event Type                 | Response                                     |
-|----------------------------|----------------------------------------------|
-| *follow*                   | Chat message                                 |
-| *cheer*                    | `**NOT IMPLEMENTED**`                        |
-| *subscription*             | Shoutout & Chat message                      |
-| *raid*                     | Shoutout & Chat message                      |
-| *hypetrain_begin*          | `**NOT IMPLEMENTED**`                        |
-| *hypetrain_end*            | `**NOT IMPLEMENTED**`                        |
-| *stream_start*             | Creates channel point rewards & Chat message |
-| *stream_end*               | `**NOT IMPLEMENTED**`                        |
-| *channel_shoutout_create*  | `**NOT IMPLEMENTED**`                        |
-| *channel_shoutout_receive* | `**NOT IMPLEMENTED**`                        |
+| Event Type                          | Response                                      |
+|-------------------------------------|-----------------------------------------------|
+| *follow*                            | Chat message                                  |
+| *cheer*                             | Shoutout & Chat message                       |
+| *subscription*                      | Shoutout & Chat message                       |
+| *raid*                              | Shoutout & Chat message                       |
+| *hypetrain_begin*                   | `**NOT IMPLEMENTED**`                         |
+| *hypetrain_end*                     | `**NOT IMPLEMENTED**`                         |
+| *stream_start*                      | Creates channel point rewards & Chat message  |
+| *stream_end*                        | `**NOT IMPLEMENTED**`                         |
+| *channel_shoutout_create*           | `**NOT IMPLEMENTED**`                         |
+| *channel_shoutout_receive*          | `**NOT IMPLEMENTED**`                         |
+| *channel_charity_campaign_donate*   | `**NOT IMPLEMENTED**`                         |
+| *channel_charity_campaign_start*    | `**NOT IMPLEMENTED**`                         |
+| *channel_charity_campaign_progress* | `**NOT IMPLEMENTED**`                         |
+| *channel_charity_campaign_stop*     | `**NOT IMPLEMENTED**`                         |
 
 ### Environment Variables
 * [Create an `.env` file](https://dev.to/jakewitcher/using-env-files-for-environment-variables-in-python-applications-55a1) with your TWITCH API tokens and your channel name to use this script:
@@ -29,9 +33,6 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | CLIENT_SECRET=      | string | *[From developer application](https://dev.twitch.tv/console/apps)*     |
 | AUTH_URI_PORT=      | int    | 3000                                                                   |
 | EVENTSUB_URI_PORT=  | int    | 8080                                                                   |
-| APP_TOKEN=          | string | *[Get an access token](https://dev.twitch.tv/docs/cli/token-command/)* |     
-| USER_TOKEN=         | string | *[Get an access token](https://dev.twitch.tv/docs/cli/token-command/)* |
-| INITIAL_CHANNELS=   | string | channel name                                                           |
 
 ### Ngrok Config | [Ngrok Tunnel Definition Docs](https://ngrok.com/docs/ngrok-agent/config#tunnel-definitions)
 * Add a `auth` and `eventsub` tunnel configuration(s) to your `ngrok.yml` file
@@ -50,8 +51,7 @@ tunnels:
 
 The RCECog **attempts** to limit commands to a allow list so update the `settings.py` file to include a comma separated list of linux binaries that you will allow to run:
 ```
-CMD_ALLOW_LIST = ['aux', 'cat', 'cd', 'echo', 'grep', 'id', 'ipconfig', 'ls', 'netstat', 'nslookup', 'pwd', 'top',
-                  'who', 'whoami']
+CMD_ALLOW_LIST = ['aux', 'cat', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'netstat', 'nslookup', 'ping', 'pwd', 'which', 'who', 'whoami']
 ```
 
 Expect some kind of malicious code to make it through if you leave the RCECog enabled! :)

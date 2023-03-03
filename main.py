@@ -5,9 +5,10 @@ import socket
 from typing import List
 
 from custombot import Bot
+from db.database import Database
 from threading_tcp_server_with_stop import ThreadingTCPServerWithStop, CodeHandler
 
-from twitch_implicit_grant_flow import TwitchImplicitGrantFlow
+from twitch_api_auth import TwitchApiAuth
 
 from twitchio import PartialUser, errors
 from twitchio.ext import commands, eventsub
@@ -16,7 +17,14 @@ from twitchio.http import TwitchHTTP, logger
 from ngrok import NgrokClient
 import settings
 
-print("Starting TwitchRCE!", settings.INITIAL_CHANNELS)
+
+db = Database()
+rows = db.fetch_all_user_logins()
+user_logins = [list(row) for row in rows][0]
+# for row in data:
+#     print(f"{row['broadcaster_login']} [{row['broadcaster_id']}]: {row['access_token']}")
+
+print("Starting TwitchRCE!", user_logins)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
@@ -37,16 +45,31 @@ esclient = eventsub.EventSubClient(client=esbot,
                                    webhook_secret='some_secret_string',
                                    callback_route=f"{eventsub_public_url}")
 
-bot = Bot()
+
+async def get_app_token() -> str:
+    twitch_api_auth = TwitchApiAuth()
+    return await twitch_api_auth.client_credentials_grant_flow()  # TODO: store in app token table
+app_token = loop.run_until_complete(get_app_token())
+
+
+row = db.fetch_user_access_token_from_login('msec_bot')
+bot = Bot(user_token=row['access_token'], initial_channels=['msec'], db=db)
 http_client: TwitchHTTP = bot._http  # authenticate bots TwitchHTTP client
 http_client.client_id = settings.CLIENT_ID
 http_client.client_secret = settings.CLIENT_SECRET
-http_client.app_token = settings.APP_TOKEN
+http_client.app_token = app_token
 
 
-async def validate_token() -> any:
+
+# check for any user logins and validate their access_tokens.
+# If invalid or missing then generate new tokens
+async def validate_token(login: str) -> any:
+    """
+    test a user token and if invalid prompt user to visit a url to generate a new token
+    """
     try:
-        validate = await http_client.validate(token=settings.USER_TOKEN)
+        row = db.fetch_user_access_token_from_login(login)
+        validate = await http_client.validate(token=row['access_token'])
         return validate
     except errors.AuthenticationError:
         # Get UserID via Authorization code grant flow
@@ -66,22 +89,23 @@ async def validate_token() -> any:
             tcpserver.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if tcpserver.stop is not True:
                 tcpserver.stop = False
-                tcpserver.serve_forever(poll_interval=0.00001)
+                tcpserver.serve_forever(poll_interval=0.1)
             logger.info('Server stopped')
 
-        igf = TwitchImplicitGrantFlow()
-        token = await igf.obtain_access_token(code=tcpserver.code,
-                                              redirect_uri='http://localhost:3000/auth')
-        settings.USER_TOKEN = token['access_token']
-        settings.REFRESH_TOKEN = token['refresh_token']
+        twitch_api_auth = TwitchApiAuth()
+        token = await twitch_api_auth.obtain_access_token(code=tcpserver.code,
+                                                          redirect_uri='http://localhost:3000/auth')
+        http_client.token = token['access_token']
+        users = await http_client.get_users(ids=[], logins=[], token=token['access_token'])
+        db.insert_user_data(broadcaster_id=users[0]['id'], broadcaster_login=users[0]['login'], email=users[0]['email'], access_token=token['access_token'], expires_in=token['expires_in'], refresh_token=token['refresh_token'], scope=token['scope'])
 
-bot.loop.run_until_complete(validate_token())
-http_client.token = settings.USER_TOKEN
+for login in user_logins:
+    bot.loop.run_until_complete(validate_token(login))
 
 
 async def get_initial_channel_broadcasters() -> List[PartialUser]:
-    """ get broadcasters User objects for every INITIAL_CHANNELS """
-    user_data = await http_client.get_users(token=http_client.token, ids=[], logins=settings.INITIAL_CHANNELS)
+    """ get broadcasters objects for every """
+    user_data = await http_client.get_users(token=http_client.app_token, ids=[], logins=user_logins)
     broadcasters: List[PartialUser] = []
     for user in user_data:
         broadcasters.append(await PartialUser(http=http_client, id=user['id'], name=user['login']).fetch())
@@ -89,7 +113,7 @@ async def get_initial_channel_broadcasters() -> List[PartialUser]:
 channel_broadcasters: List[PartialUser] = loop.run_until_complete(get_initial_channel_broadcasters())
 
 
-bot.loop.run_until_complete(bot.__esclient_init__(esclient=esclient, channel_broadcasters=channel_broadcasters))  # start the event subscription client
+bot.loop.run_until_complete(bot.__esclient_init__(esclient=esclient, database=db))  # start the event subscription client
 
 
 @esbot.event()
@@ -121,7 +145,8 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
     # create stream marker (Stream markers cannot be created when the channel is offline)
     streams = await http_client.get_streams(user_ids=[payload.data.broadcaster.id])
     if len(streams) >= 1 and streams[0].type == 'live':
-        await payload.data.broadcaster.create_marker(token=settings.USER_TOKEN,
+        row = db.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+        await payload.data.broadcaster.create_marker(token=row['access_token'],
                                                      description=event_string)
     if not payload.data.is_anonymous:
         # Get cheerer info
@@ -147,7 +172,8 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     # create stream marker (Stream markers cannot be created when the channel is offline)
     streams = await http_client.get_streams(user_ids=[payload.data.broadcaster.id])
     if len(streams) >= 1 and streams[0]['type'] == 'live':
-        await payload.data.broadcaster.create_marker(token=settings.USER_TOKEN,
+        access_token = db.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+        await payload.data.broadcaster.create_marker(token=access_token,
                                                      description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
                                                                  f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
     # Get subscriber info
@@ -175,7 +201,8 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
     # create stream marker (Stream markers cannot be created when the channel is offline)
     streams = await http_client.get_streams(user_ids=[payload.data.reciever.id])
     if len(streams) >= 1 and streams[0]['type'] == 'live':
-        await broadcaster.create_marker(token=settings.USER_TOKEN,
+        access_token = db.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+        await broadcaster.create_marker(token=access_token,
                                         description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
                                                     f"with {payload.data.viewer_count} viewers!")
     # Get raider info
@@ -217,48 +244,54 @@ async def add_kill_my_shell_redemption_reward(broadcaster: PartialUser):
     """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
     channel = await http_client.get_channels(broadcaster_id=broadcaster.id)
     if channel[0]['game_id'] in [509670, 1469308723]:  # Science & Technology, Software and Game Development
+        row = db.fetch_user_access_token_from_id(broadcaster.id)
         await http_client.create_reward(broadcaster_id=broadcaster.id,
                                         title="Kill My Shell",
                                         cost=6666,
                                         prompt="Immediately closes the last terminal window that was opened without warning!",
                                         global_cooldown=5 * 60,
-                                        token=settings.USER_TOKEN)
+                                        token=row['access_token'])
 
 
 async def add_vip_auto_redemption_reward(broadcaster: PartialUser):
     """ Adds channel point redemption that adds the user to the VIP list automatically """
-    vips = await http_client.get_channel_vips(token=settings.USER_TOKEN,
+    row = db.fetch_user_access_token_from_id(broadcaster.id)
+    vips = await http_client.get_channel_vips(token=row['access_token'],
                                               broadcaster_id=broadcaster.id,
                                               first=100)
     if len(vips) < settings.MAX_VIP_SLOTS:
+        access_token = db.fetch_user_access_token_from_id(broadcaster.id)
         await http_client.create_reward(broadcaster_id=broadcaster.id,
                                         title="VIP",
                                         cost=80085,
                                         prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
                                         max_per_user=1,
                                         global_cooldown=5 * 60,
-                                        token=settings.USER_TOKEN)
+                                        token=row['access_token'])
 
 
 async def delete_all_custom_rewards(broadcaster: PartialUser):
-    """ deletes all custom rewards (API limits deletes to those created by the bot) """
+    """ deletes all custom rewards (API limits deletes to those created by the bot)
+        Requires a user access token that includes the channel:manage:redemptions scope. """
+    row = db.fetch_user_access_token_from_id(broadcaster.id)
     rewards = await http_client.get_rewards(broadcaster_id=broadcaster.id,
                                             only_manageable=True,
-                                            token=settings.USER_TOKEN)
+                                            token=row['access_token'])
     print(f"Got rewards: [{json.dumps(rewards)}]")
     if rewards is not None:
         custom_reward_titles = ["Kill My Shell", "VIP"]
         for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
             await http_client.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                    reward_id=reward["id"],
-                                                   token=settings.USER_TOKEN)
+                                                   token=row['access_token'])
             print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
 
 
 async def shoutout(broadcaster: PartialUser, channel: any, color: str):
     """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
     # TODO: handle blank game_name
-    await http_client.post_chat_announcement(token=settings.USER_TOKEN,
+    row = db.fetch_user_access_token_from_id(broadcaster.id)
+    await http_client.post_chat_announcement(token=row['access_token'],
                                              broadcaster_id=broadcaster.id,
                                              message=f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}! "
                                                      f"They were last playing \'{channel['game_name']}\'.",
@@ -268,7 +301,7 @@ async def shoutout(broadcaster: PartialUser, channel: any, color: str):
         The channel giving a Shoutout must be live. """
     streams = await http_client.get_streams(user_ids=[broadcaster.id])
     if len(streams) >= 1 and streams[0]['type'] == 'live':
-        await broadcaster.shoutout(token=settings.USER_TOKEN,
+        await broadcaster.shoutout(token=row['access_token'],
                                    to_broadcaster_id=channel['broadcaster_id'],
                                    moderator_id=broadcaster.id)
 
@@ -278,3 +311,6 @@ async def shoutout(broadcaster: PartialUser, channel: any, color: str):
 
 
 bot.run()
+
+db.backup_to_disk()
+db.close()

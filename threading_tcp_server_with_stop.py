@@ -15,7 +15,9 @@ class CodeHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", "text/html")
             self.end_headers()
         else:
-            super().do_GET()
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
 
     def log_request(self, code='-', size='-'):
         self.log_message('"%s" %s %s', self.requestline, str(code), str(size))
@@ -44,6 +46,6 @@ class ThreadingTCPServerWithStop(socketserver.ThreadingTCPServer):
         self.code = ""
         super().server_bind()
 
-    def serve_forever(self, poll_interval=0.1):
+    def serve_forever(self, poll_interval=1):
         while not self.stop:
             self.handle_request()
