@@ -1,13 +1,12 @@
 import twitchio
 from twitchio.ext import commands
-from twitchio.http import TwitchHTTP
 
-import settings
+import custombot
 
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: custombot.Bot):
         self.bot = bot
 
     @commands.Cog.event()
@@ -17,43 +16,47 @@ class VIPCog(commands.Cog):
         # print('VIPCog: ', message.author.name, message.content)
 
     @commands.command()
-    async def add_channel_vip(self, event: commands.Context):
-        # TODO: figure out correct type of event and pass correct object to update_reward_redemption_status()
+    async def add_channel_vip(self, ctx: commands.Context):
+        broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
+        row = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
 
         # Get list of channel mods
-        mods = await self.bot._http.get_channel_moderators(token=settings.USER_TOKEN,
-                                                           broadcaster_id=self.bot.user_id)
-        mods_user_ids = [mod['user_id'] for mod in mods]
+        # mods = await self.bot._http.get_channel_moderators(token=row['access_token'],
+        #                                                    broadcaster_id=str(broadcaster[0]['id']))
+        # mods_user_ids = [mod['user_id'] for mod in mods]
 
         # Get list of channel vips
-        vips = await self.bot._http.get_channel_vips(token=settings.USER_TOKEN,
-                                                     broadcaster_id=self.bot.user_id)
-        vips_user_ids = [vip['user_id'] for vip in vips]
+        # vips = await self.bot._http.get_channel_vips(token=row['access_token'],
+        #                                              broadcaster_id=str(broadcaster[0]['id']))
+        # vips_user_ids = [vip['user_id'] for vip in vips]
 
-        if event.author.id in mods_user_ids:
+        if ctx.author.is_mod:
             """ Check if the redeemer is already a moderator and abort """
-            print(f'{event.author.display_name} is already a MOD')
-            await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
-                                                                 broadcaster_id=self.bot.user_id,
-                                                                 reward_id=event.id,
-                                                                 custom_reward_id=event.reward.id,
-                                                                 status=False)
-        elif event.author.id in vips_user_ids:
+            print(f'{ctx.author.display_name} is already a MOD')
+            # TODO: figure out correct type of event and pass correct object to update_reward_redemption_status()
+            # await self.bot._http.update_reward_redemption_status(token=row['access_token'],
+            #                                                      broadcaster_id=str(broadcaster[0]['id']),
+            #                                                      reward_id=event.id,
+            #                                                      custom_reward_id=event.reward.id,
+            #                                                      status=False)
+        elif ctx.author.is_vip:
             """ Check if the redeemer is already a VIP and abort """
-            print(f'{event.author.display_name} is already a VIP')
-            await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
-                                                                 broadcaster_id=self.bot.user_id,
-                                                                 reward_id=event.id,
-                                                                 custom_reward_id=event.reward.id,
-                                                                 status=False)
+            print(f'{ctx.author.display_name} is already a VIP')
+            # TODO: figure out correct type of event and pass correct object to update_reward_redemption_status()
+            # await self.bot._http.update_reward_redemption_status(token=row['access_token'],
+            #                                                      broadcaster_id=str(broadcaster[0]['id']),
+            #                                                      reward_id=event.id,
+            #                                                      custom_reward_id=event.reward.id,
+            #                                                      status=False)
 
         else:
             """ Add redeemer as a VIP, and auto-fulfill the redemption """
-            await self.bot._http.post_channel_vip(token=settings.USER_TOKEN,
-                                                  broadcaster_id=self.bot.user_id,
-                                                  user_id=event.author.id)
-            await self.bot._http.update_reward_redemption_status(token=settings.USER_TOKEN,
-                                                                 broadcaster_id=self.bot.user_id,
-                                                                 reward_id=event.id,
-                                                                 custom_reward_id=event.reward.id,
-                                                                 status=True)
+            await self.bot._http.post_channel_vip(token=row['access_token'],
+                                                  broadcaster_id=str(broadcaster[0]['id']),
+                                                  user_id=ctx.author.id)
+            # TODO: figure out correct type of event and pass correct object to update_reward_redemption_status()
+            # await self.bot._http.update_reward_redemption_status(token=row['access_token'],
+            #                                                      broadcaster_id=str(broadcaster[0]['id']),
+            #                                                      reward_id=event.id,
+            #                                                      custom_reward_id=event.reward.id,
+            #                                                      status=True)
