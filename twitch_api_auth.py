@@ -11,7 +11,7 @@ class TwitchApiAuth:
     def __init__(self):
         self.loop = asyncio.get_event_loop()
 
-    async def client_credentials_grant_flow(self) -> str:
+    async def client_credentials_grant_flow(self):
         """
         The client credentials grant flow is meant only for server-to-server API requests that use an app access token.
         To get an access token, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters as appropriate for your app.
@@ -41,7 +41,7 @@ class TwitchApiAuth:
             exit(0)
         if status == 200:
             print(f"Generated app access token: {json.dumps(data)}.")
-            return data['access_token']
+            return data
 
     async def obtain_access_token(self, code: str, redirect_uri: str):
         """
