@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import secrets
 import socket
 from typing import List
 
@@ -18,12 +19,10 @@ from ngrok import NgrokClient
 import settings
 
 
+# init db
 db = Database()
 rows = db.fetch_all_user_logins()
-user_logins = [list(row) for row in rows][0]
-# for row in data:
-#     print(f"{row['broadcaster_login']} [{row['broadcaster_id']}]: {row['access_token']}")
-
+user_logins = [row['broadcaster_login'] for row in rows]
 print("Starting TwitchRCE!", user_logins)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -48,17 +47,25 @@ esclient = eventsub.EventSubClient(client=esbot,
 
 async def get_app_token() -> str:
     twitch_api_auth = TwitchApiAuth()
-    return await twitch_api_auth.client_credentials_grant_flow()  # TODO: store in app token table
-app_token = loop.run_until_complete(get_app_token())
+    ccgf = await twitch_api_auth.client_credentials_grant_flow()
+    db.insert_app_data(ccgf['access_token'], ccgf['expires_in'], ccgf['token_type'])
+    print("Updated App Token!")
+    return ccgf['access_token']
+
+row = db.fetch_app_token()
+app_token = ''
+if len(row) < 1:
+    app_token = loop.run_until_complete(get_app_token())
 
 
-row = db.fetch_user_access_token_from_login('msec_bot')
-bot = Bot(user_token=row['access_token'], initial_channels=['msec'], db=db)
-http_client: TwitchHTTP = bot._http  # authenticate bots TwitchHTTP client
+user_access_token_resultset = db.fetch_user_access_token_from_login('msec_bot')  # DEFINE CHATBOT USER HERE
+bot = Bot(user_token=user_access_token_resultset['access_token'],
+          initial_channels=['msec_bot'],  # DEFINE CHANNEL TO JOIN HERE
+          db=db)
+http_client: TwitchHTTP = bot._http
 http_client.client_id = settings.CLIENT_ID
 http_client.client_secret = settings.CLIENT_SECRET
 http_client.app_token = app_token
-
 
 
 # check for any user logins and validate their access_tokens.
@@ -80,7 +87,7 @@ async def validate_token(login: str) -> any:
                             f"&redirect_uri=http://localhost:3000/auth" \
                             f"&response_type=code" \
                             f"&scope={scope.replace(' ', '%20')}" \
-                            f"&state={'csrf'}"  # TODO: generate actual csrf token
+                            f"&state={secrets.token_hex(16)}"
         print("Launching auth site:", authorization_url)
 
         logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -93,13 +100,17 @@ async def validate_token(login: str) -> any:
             logger.info('Server stopped')
 
         twitch_api_auth = TwitchApiAuth()
-        token = await twitch_api_auth.obtain_access_token(code=tcpserver.code,
-                                                          redirect_uri='http://localhost:3000/auth')
-        http_client.token = token['access_token']
-        users = await http_client.get_users(ids=[], logins=[], token=token['access_token'])
-        db.insert_user_data(broadcaster_id=users[0]['id'], broadcaster_login=users[0]['login'], email=users[0]['email'], access_token=token['access_token'], expires_in=token['expires_in'], refresh_token=token['refresh_token'], scope=token['scope'])
+        auth_result = await twitch_api_auth.obtain_access_token(code=tcpserver.code,
+                                                                redirect_uri='http://localhost:3000/auth')
+        http_client.token = auth_result['access_token']
+        users = await http_client.get_users(ids=[], logins=[], token=auth_result['access_token'])
+        db.insert_user_data(broadcaster_id=users[0]['id'], broadcaster_login=users[0]['login'],
+                            email=users[0]['email'], access_token=auth_result['access_token'],
+                            expires_in=auth_result['expires_in'], refresh_token=auth_result['refresh_token'],
+                            scope=auth_result['scope'])
 
 for login in user_logins:
+    print(f"Validating user token for {login}")
     bot.loop.run_until_complete(validate_token(login))
 
 

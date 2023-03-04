@@ -1,5 +1,4 @@
 import socketserver
-from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler
 from typing import Callable, Any
 
@@ -21,12 +20,10 @@ class CodeHandler(SimpleHTTPRequestHandler):
 
     def log_request(self, code='-', size='-'):
         self.log_message('"%s" %s %s', self.requestline, str(code), str(size))
-        if isinstance(code, HTTPStatus):
-            code = code.value
         # Stop the server if we get USER_IMPLICIT_GRANT_FLOW code back
         if "code" in self.path:
             self.server.code = str(self.path.split("=")[1]).replace('&scope', '')
-            print("USER_IMPLICIT_GRANT_FLOW_CODE: done")  # ", settings.USER_IMPLICIT_GRANT_FLOW_CODE)
+            print("USER_IMPLICIT_GRANT_FLOW_CODE: done")
             self.server.stop = True
 
 
@@ -35,7 +32,7 @@ class ThreadingTCPServerWithStop(socketserver.ThreadingTCPServer):
             self: Any,
             server_address: tuple[str, int],
             RequestHandlerClass: Callable[[Any, Any, Any], socketserver.BaseRequestHandler],
-            bind_and_activate: bool = ...,
+            bind_and_activate: bool = ...
     ):
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
         self.stop = None

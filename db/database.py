@@ -28,8 +28,16 @@ class Database:
     def create_table(self):
         """ create db table """
         cursor = self.conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS app (id INTEGER PRIMARY KEY, access_token TEXT, expires_in INTEGER, token_type TEXT UNIQUE)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, broadcaster_id INTEGER UNIQUE, broadcaster_login TEXT UNIQUE, email TEXT, access_token TEXT, expires_in INTEGER, refresh_token TEXT, scope TEXT)")
+        self.conn.commit()
+
+    def insert_app_data(self, access_token, expires_in, token_type):
+        """ insert new record """
+        cursor = self.conn.cursor()
         cursor.execute(
-            "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, broadcaster_id INTEGER UNIQUE, broadcaster_login TEXT UNIQUE, email TEXT, access_token TEXT, expires_in INTEGER, refresh_token TEXT, scope TEXT)"
+            "INSERT OR REPLACE INTO app (access_token, expires_in, token_type) VALUES (?, ?, ?)",
+            (access_token, int(expires_in), token_type)
         )
         self.conn.commit()
 
@@ -54,6 +62,27 @@ class Database:
         disk_conn.backup(self.conn)
         disk_conn.close()
 
+    def fetch_app_token(self):
+        """ get all user data """
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM app")
+        return cursor.fetchall()
+
+    def fetch_user_from_id(self, broadcaster_id: str):
+        """ get all user data """
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE broadcaster_id = ?", (broadcaster_id,))
+        return cursor.fetchall()
+
+    def fetch_user_from_login(self, broadcaster_login: str):
+        """ get all user data """
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE broadcaster_login = ?", (broadcaster_login,))
+        return cursor.fetchall()
+
     def fetch_all_users(self):
         """ get all user data """
         self.conn.row_factory = sqlite3.Row
@@ -61,12 +90,12 @@ class Database:
         cursor.execute("SELECT * FROM users")
         return cursor.fetchall()
 
-    def fetch_all_user_logins(self):
-        """ get all user_logins data """
+    def fetch_user_access_token_from_id(self, broadcaster_id: int):
+        """ get a single users access token """
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
-        cursor.execute("SELECT broadcaster_login FROM users")
-        return cursor.fetchall()
+        cursor.execute("SELECT access_token FROM users WHERE broadcaster_id = ?", (broadcaster_id,))
+        return cursor.fetchone()
 
     def fetch_user_access_token_from_login(self, broadcaster_login: str):
         """ get a single users access token """
@@ -75,12 +104,12 @@ class Database:
         cursor.execute("SELECT access_token FROM users WHERE broadcaster_login = ?", (broadcaster_login,))
         return cursor.fetchone()
 
-    def fetch_user_access_token_from_id(self, broadcaster_id: int):
-        """ get a single users access token """
+    def fetch_all_user_logins(self):
+        """ get all user_logins data """
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
-        cursor.execute("SELECT access_token FROM users WHERE broadcaster_id = ?", (broadcaster_id,))
-        return cursor.fetchone()
+        cursor.execute("SELECT broadcaster_login FROM users")
+        return cursor.fetchall()
 
     def close(self):
         self.conn.close()

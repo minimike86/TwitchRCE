@@ -1,4 +1,7 @@
+from typing import List
+
 import twitchio
+from twitchio import User
 from twitchio.ext import commands, eventsub
 
 import settings
@@ -11,6 +14,7 @@ class Bot(commands.Bot):
         super().__init__(token=user_token,
                          prefix='!',
                          initial_channels=initial_channels)
+        self.initial_channels = initial_channels
         self.db = db
 
         """ load commands from cogs """
@@ -29,48 +33,47 @@ class Bot(commands.Bot):
             print(e.with_traceback(tb=None))
 
         """ before registering new event subscriptions remove old event subs """
-        # TODO: make this optional some broadcasters might have pre-configured event subs that this would delete
-        data = database.fetch_all_users()
-        for broadcaster in data:
-            print(broadcaster)
-            esclient._http.__init__(client=esclient, token=broadcaster['access_token'])
+        esclient._http.__init__(client=esclient, token=self.db.fetch_app_token()[0]['access_token'])
+        es_subs = await esclient._http.get_subscriptions()
+        print(f"{len(es_subs)} event subs found")
+        for es_sub in es_subs:
+            await esclient._http.delete_subscription(es_sub)
+            print(f"deleting event sub: {es_sub.id}")
+        print(f"deleted all event subs.")
 
-            es_subs = await esclient._http.get_subscriptions()
-            print(f"{len(es_subs)} event subs found")
-            for es_sub in es_subs:
-                await esclient._http.delete_subscription(es_sub)
-                print(f"deleting event sub: {es_sub.id}")
-            print(f"deleted all event subs.")
+        broadcasters: List[User] = await self.fetch_users(names=self.initial_channels)
+        for broadcaster in broadcasters:
+            print(f'Subscribing to events for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_follows event"""
-                await esclient.subscribe_channel_follows(broadcaster=broadcaster['broadcaster_id'])
+                await esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
             except twitchio.HTTPException:
-                pass
+                print(f'Failed to subscribe to channel_follows event for {broadcaster.name}\'s channel.')
 
             try:
-                """ create new event subscription for subscribe_channel_cheers event """
-                await esclient.subscribe_channel_cheers(broadcaster=broadcaster['broadcaster_id'])
+                """ create new event subscription for channel_cheers event """
+                await esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
             except twitchio.HTTPException:
-                pass
+                print(f'Failed to subscribe to channel_cheers event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_subscriptions event """
-                await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster['broadcaster_id'])
+                await esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
             except twitchio.HTTPException:
-                pass
+                print(f'Failed to subscribe to channel_subscriptions event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_raid event """
-                await esclient.subscribe_channel_raid(to_broadcaster=broadcaster['broadcaster_id'])
+                await esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
             except twitchio.HTTPException:
-                pass
+                print(f'Failed to subscribe to channel_raid event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_stream_start event """
-                await esclient.subscribe_channel_stream_start(broadcaster=broadcaster['broadcaster_id'])
+                await esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
             except twitchio.HTTPException:
-                pass
+                print(f'Failed to subscribe to channel_stream_start event for {broadcaster.name}\'s channel.')
 
     async def event_ready(self):
         """ Bot is logged into IRC and ready to do its thing. """
