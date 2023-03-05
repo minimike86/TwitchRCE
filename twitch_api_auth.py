@@ -79,7 +79,7 @@ class TwitchApiAuth:
             print(f"Token validated: {json.dumps(data)}.")
             return data
 
-    async def refresh_access_token(self, code: str, refresh_token: str):
+    async def refresh_access_token(self, refresh_token: str):
         """
         https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow
         To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters in the body of the POST.
@@ -98,7 +98,7 @@ class TwitchApiAuth:
             "client_id": settings.CLIENT_ID,
             "client_secret": settings.CLIENT_SECRET,
             "grant_type": "refresh_token",
-            "refresh_token": f"{urlencode(refresh_token)}"
+            "refresh_token": f"{refresh_token}"
         }
         request_body = {
         }
@@ -107,8 +107,8 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(f"Failed to validate token using code: {code}.")
+            print(f"Failed to refresh token using token: {refresh_token}.")
             exit(0)
         if status == 200:
-            print(f"Token validated: {json.dumps(data)}.")
+            print(f"Token refreshed: {json.dumps(data)}.")
             return data
