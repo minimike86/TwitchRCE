@@ -38,7 +38,8 @@ class RCECog(commands.Cog):
                            This will run (mostly) un-sanitised bash commands on the streamers machine. rm -rf for the win.""")
 
         # only broadcaster can run exec commands
-        elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 561196021 or int(ctx.author.id) == 125444292:
+        # TODO: allow mods to run exec commands
+        elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 125444292:
             # grab the arbitrary bash command(s) without the bot prefix
             cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
             for alias in ctx.command.aliases:
