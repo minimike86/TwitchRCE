@@ -31,14 +31,14 @@ class RCECog(commands.Cog):
     async def exec(self, ctx: commands.Context):
         # get channel broadcaster
         broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        row = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
+        user_access_token_resultset = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
 
         if ctx.message.content == "!exec --help":
             await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
                            This will run (mostly) un-sanitised bash commands on the streamers machine. rm -rf for the win.""")
 
         # only broadcaster can run exec commands
-        elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 125444292:
+        elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 561196021 or int(ctx.author.id) == 125444292:
             # grab the arbitrary bash command(s) without the bot prefix
             cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
             for alias in ctx.command.aliases:
@@ -79,7 +79,7 @@ class RCECog(commands.Cog):
                             """ post the stdout to chat """
                             stdout = f'stdout: {stdout.decode()}'
                             try:
-                                await self.bot._http.post_chat_announcement(token=row['access_token'],
+                                await self.bot._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
                                                                             broadcaster_id=str(broadcaster[0]['id']),
                                                                             moderator_id=self.bot.user_id,
                                                                             message=f"{textwrap.shorten(stdout, width=500)}",
@@ -90,7 +90,7 @@ class RCECog(commands.Cog):
                             """ post the stderr to chat """
                             stderr = f'stderr: {stderr.decode()}'
                             try:
-                                await self.bot._http.post_chat_announcement(token=row['access_token'],
+                                await self.bot._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
                                                                             broadcaster_id=str(broadcaster[0]['id']),
                                                                             moderator_id=self.bot.user_id,
                                                                             message=f"{textwrap.shorten(stderr, width=500)}",
@@ -102,7 +102,7 @@ class RCECog(commands.Cog):
                         """ post message to chat informing they tried to run a command that wasn't in the allow list """
                         error_msg = f'Nice try {ctx.author.display_name} but the command(s) in `{cmd}` are not in the allow list!'
                         try:
-                            await self.bot._http.post_chat_announcement(token=row['access_token'],
+                            await self.bot._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
                                                                         broadcaster_id=str(broadcaster[0]['id']),
                                                                         moderator_id=self.bot.user_id,
                                                                         message=f"{textwrap.shorten(error_msg, width=500)}",
