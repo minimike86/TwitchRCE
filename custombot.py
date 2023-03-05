@@ -1,7 +1,7 @@
 from typing import List
 
 import twitchio
-from twitchio import User
+from twitchio import User, PartialUser
 from twitchio.ext import commands, eventsub
 
 import settings
@@ -24,6 +24,9 @@ class Bot(commands.Bot):
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
 
+    async def __validate__(self, user_token: str):
+        await self._http.validate(token=user_token)
+
     async def __esclient_init__(self, esclient: eventsub.EventSubClient, database: Database) -> None:
         """ start the esclient listening on specified port """
         try:
@@ -32,14 +35,7 @@ class Bot(commands.Bot):
         except Exception as e:
             print(e.with_traceback(tb=None))
 
-        """ before registering new event subscriptions remove old event subs """
-        esclient._http.__init__(client=esclient, token=self.db.fetch_app_token()[0]['access_token'])
-        es_subs = await esclient._http.get_subscriptions()
-        print(f"{len(es_subs)} event subs found")
-        for es_sub in es_subs:
-            await esclient._http.delete_subscription(es_sub)
-            print(f"deleting event sub: {es_sub.id}")
-        print(f"deleted all event subs.")
+        await self.delete_event_subscriptions(esclient=esclient)
 
         broadcasters: List[User] = await self.fetch_users(names=self.initial_channels)
         for broadcaster in broadcasters:
@@ -75,9 +71,27 @@ class Bot(commands.Bot):
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_stream_start event for {broadcaster.name}\'s channel.')
 
+    async def delete_event_subscriptions(self, esclient):
+        """ before registering new event subscriptions remove old event subs """
+        app_token = self.db.fetch_app_token()[0]['access_token']
+        esclient._http.__init__(client=esclient, token=app_token)
+        es_subs = await esclient._http.get_subscriptions()
+        print(f"{len(es_subs)} event subs found")
+        for es_sub in es_subs:
+            await esclient._http.delete_subscription(es_sub)
+            print(f"deleting event sub: {es_sub.id}")
+        del es_sub
+        del es_subs
+        print(f"deleted all event subs.")
+
     async def event_ready(self):
         """ Bot is logged into IRC and ready to do its thing. """
         print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
+        logins = [channel.name for channel in self.connected_channels]
+        user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
+        for user in user_data:
+            user = await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch()
+            await user.channel.send(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
