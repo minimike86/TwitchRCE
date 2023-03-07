@@ -1,12 +1,12 @@
 import twitchio
 from twitchio.ext import commands
 
-import custombot
+import custom_bot
 
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot: custombot.Bot):
+    def __init__(self, bot: custom_bot.Bot):
         self.bot = bot
 
     @commands.Cog.event()
@@ -18,7 +18,7 @@ class VIPCog(commands.Cog):
     @commands.command()
     async def add_channel_vip(self, ctx: commands.Context):
         broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        row = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
+        row = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
 
         # Get list of channel mods
         # mods = await self.bot._http.get_channel_moderators(token=row['access_token'],

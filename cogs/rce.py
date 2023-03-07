@@ -12,13 +12,13 @@ import twitchio
 from twitchio import errors
 from twitchio.ext import commands
 
-import custombot
+import custom_bot
 import settings
 
 
 class RCECog(commands.Cog):
 
-    def __init__(self, bot: custombot.Bot):
+    def __init__(self, bot: custom_bot.Bot):
         self.bot = bot
 
     @commands.Cog.event()
@@ -31,7 +31,7 @@ class RCECog(commands.Cog):
     async def exec(self, ctx: commands.Context):
         # get channel broadcaster
         broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        user_access_token_resultset = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
+        user_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
 
         if ctx.message.content == "!exec --help":
             await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
@@ -41,9 +41,11 @@ class RCECog(commands.Cog):
         # TODO: allow mods to run exec commands
         elif int(ctx.author.id) == int(broadcaster[0]['id']) or int(ctx.author.id) == 125444292:
             # grab the arbitrary bash command(s) without the bot prefix
-            cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
-            for alias in ctx.command.aliases:
-                cmd = re.sub(fr'^{self.bot._prefix}{alias}', '', ctx.message.content).strip()
+            if ctx.message.content[:5] == '!exec':
+                cmd = re.sub(fr'^{self.bot._prefix}{ctx.command.name}', '', ctx.message.content).strip()
+            else:
+                for alias in ctx.command.aliases:
+                    cmd = re.sub(fr'^{self.bot._prefix}{alias}', '', ctx.message.content).strip()
 
             # strip operators
             operators = ['>>', '>', '&&', '&', ';', '..']
@@ -113,6 +115,17 @@ class RCECog(commands.Cog):
 
                 except TimeoutError:
                     await ctx.channel.send('TimeoutError occurred')
+                except subprocess.TimeoutExpired:
+                    """ post message to chat informing they tried to run a command that took too long to run """
+                    error_msg = f'Nice try {ctx.author.display_name} but the command(s) in `{cmd}` took too long to run!'
+                    try:
+                        await self.bot._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
+                                                                    broadcaster_id=str(broadcaster[0]['id']),
+                                                                    moderator_id=self.bot.user_id,
+                                                                    message=f"{textwrap.shorten(error_msg, width=500)}",
+                                                                    color="orange")
+                    except errors.AuthenticationError:
+                        await ctx.channel.send(content=error_msg)
                 except CancelledError:
                     await ctx.channel.send('CancelledError occurred')
                 finally:
@@ -126,7 +139,7 @@ class RCECog(commands.Cog):
     async def killmyshell(self, ctx: commands.Context):
         # get channel broadcaster
         broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        row = self.bot.db.fetch_user_access_token_from_id(self.bot.user_id)
+        row = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
 
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
         proc_id = subprocess.check_output(cmd1, shell=True).decode().split(" ")[0].strip()

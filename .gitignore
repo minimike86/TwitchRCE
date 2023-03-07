@@ -130,3 +130,4 @@ dmypy.json
 /scopes.txt
 /test_main.py
 /twitchrce.sqlite
+/malicious_rce.txt
