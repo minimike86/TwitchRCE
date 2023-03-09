@@ -5,6 +5,7 @@ from twitchio.ext import eventsub, pubsub, commands
 from twitchio.ext.commands import Cog, Context
 
 from cogs.rce import RCECog
+from cogs.vip import VIPCog
 from custom_bot import Bot
 from db.database import Database
 
@@ -104,7 +105,8 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
 
         # TODO: respond to VIP redemption
         if event.reward.title == 'VIP':
-            pass
+            vip_cog: VIPCog = bot.cogs['VIPCog']
+            await vip_cog.add_channel_vip(channel_id=event.channel_id, author_id=event.user.id, author_login=event.user.name, event=event)
 
 
 @bot.event()
