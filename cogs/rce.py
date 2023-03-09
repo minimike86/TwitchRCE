@@ -180,6 +180,6 @@ class RCECog(commands.Cog):
                                                             broadcaster_id=str(broadcaster[0]['id']),
                                                             moderator_id=self.bot.user_id,
                                                             message=f"Unlucky {author_login} there are no terminals open to kill; your channel points have been refunded",
-                                                            color="purple")
+                                                            color="orange")
             except errors.AuthenticationError:
                 print(f"Unlucky {author_login} but there are no terminals open to kill")
