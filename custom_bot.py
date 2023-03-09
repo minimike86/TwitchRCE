@@ -289,6 +289,15 @@ class Bot(commands.Bot):
         """ invoke skynet """
         await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
 
+    # TODO: add sound extensions commands https://twitchio.dev/en/latest/exts/sounds.html
+    # MAKE AS A COG!!!
+    @commands.command()
+    async def ohlook(self, ctx: commands.Context):
+        """ type !ohlook """
+        if int(ctx.author.id) == 601591745 or int(ctx.author.id) == 125444292:
+            await ctx.send(f'Oh look, it\'s the bitch!')
+            await ctx.send(f'!so @stairsthetrashman')
+
     # TODO: add chatgpt commands https://github.com/openai/openai-python
     @commands.command()
     async def chatgpt(self, ctx: commands.Context):
