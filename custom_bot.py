@@ -277,7 +277,7 @@ class Bot(commands.Bot):
                                                 color=color)  # blue green orange purple primary
         """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
             The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
-        if channel['broadcaster_id'] != broadcaster.id:
+        if channel['broadcaster_id'] != str(broadcaster.id):
             streams = await self._http.get_streams(user_ids=[broadcaster.id])
             if len(streams) >= 1 and streams[0]['type'] == 'live':
                 await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
