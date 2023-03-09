@@ -30,10 +30,11 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS app (id INTEGER PRIMARY KEY, access_token TEXT, expires_in INTEGER, token_type TEXT UNIQUE)")
         cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, broadcaster_id INTEGER UNIQUE, broadcaster_login TEXT UNIQUE, email TEXT, access_token TEXT, expires_in INTEGER, refresh_token TEXT, scope TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS raid (id INTEGER PRIMARY KEY, raider_id INTEGER, raider_login TEXT, receiver_id INTEGER, receiver_login TEXT, viewer_count INTEGER, timestamp INTEGER )")
         self.conn.commit()
 
     def insert_app_data(self, access_token, expires_in, token_type):
-        """ insert new record """
+        """ insert new app record """
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO app (access_token, expires_in, token_type) VALUES (?, ?, ?)",
@@ -42,11 +43,20 @@ class Database:
         self.conn.commit()
 
     def insert_user_data(self, broadcaster_id, broadcaster_login, email, access_token, expires_in, refresh_token, scope):
-        """ insert new record """
+        """ insert new user record """
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT OR REPLACE INTO users (broadcaster_id, broadcaster_login, email, access_token, expires_in, refresh_token, scope) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (int(broadcaster_id), broadcaster_login, email, access_token, int(expires_in), refresh_token, json.dumps(scope))
+        )
+        self.conn.commit()
+
+    def insert_raid_data(self, raider_id, raider_login, receiver_id, receiver_login, viewer_count):
+        """ insert new raid record """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO raid (raider_id, raider_login, receiver_id, receiver_login, viewer_count, timestamp) VALUES (?, ?, ?, ?, ?, unixepoch())",
+            (int(raider_id), raider_login, int(receiver_id), receiver_login, int(viewer_count))
         )
         self.conn.commit()
 
@@ -109,6 +119,20 @@ class Database:
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
         cursor.execute("SELECT broadcaster_login FROM users")
+        return cursor.fetchall()
+
+    def fetch_raids_from_id(self, raider_id: int):
+        """ get a single users access token """
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM raid WHERE raider_id = ?", (raider_id,))
+        return cursor.fetchall()
+
+    def fetch_raids_from_login(self, raider_login: str):
+        """ get a single users access token """
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM raid WHERE raider_login = ?", (raider_login,))
         return cursor.fetchall()
 
     def close(self):

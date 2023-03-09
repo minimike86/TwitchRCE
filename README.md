@@ -2,9 +2,12 @@
 Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machine
 
 ## Commands | [TwitchIO Commands Docs](https://twitchio.dev/en/latest/exts/commands.html)
-* `!exec` OR `!cmd` - *Runs any bash command (if it's in the allow list)*
+* `!exec <command>` OR `!cmd <command>` - *Runs any bash command (if it's in the allow list)*
 * `!killmyshell` - *Finds open terminal windows and closes the most recently opened*
 * `!add_channel_vip` - *Adds user to an available vip slot*
+* `!hello` - *Says hello to author*
+* `!raids <@username>` - *displays how many raids you've received from the user*
+* `!shoutout <@username>` OR `!so <@username>` - *Sends a shoutout announcement message*
 
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
 | Event Type                          | Response                                      |

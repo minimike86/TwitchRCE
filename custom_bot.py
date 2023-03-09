@@ -1,9 +1,11 @@
 import json
+import re
+import sqlite3
 from typing import List
 
 import twitchio
 from twitchio import User, PartialUser, errors
-from twitchio.ext import commands, eventsub
+from twitchio.ext import commands, eventsub, pubsub
 
 import settings
 from db.database import Database
@@ -18,6 +20,9 @@ class Bot(commands.Bot):
                          initial_channels=initial_channels)
         self.initial_channels = initial_channels
         self.database = database
+
+        self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
+
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
@@ -46,6 +51,12 @@ class Bot(commands.Bot):
     async def __validate__(self, user_token: str):
         validate_result = await self._http.validate(token=user_token)
         print(f"Validation complete: {validate_result}")
+
+    async def __psclient_init__(self, user_token: str, channel_id: int) -> None:
+        topics = [
+            pubsub.channel_points(user_token)[channel_id],
+        ]
+        await self.psclient.subscribe_topics(topics)
 
     async def __esclient_init__(self) -> None:
         """ start the esclient listening on specified port """
@@ -91,6 +102,42 @@ class Bot(commands.Bot):
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_stream_start event for {broadcaster.name}\'s channel.')
 
+            try:
+                """ create new event subscription for channel_stream_end event """
+                await self.esclient.subscribe_channel_stream_end(broadcaster=broadcaster.id)
+            except twitchio.HTTPException:
+                print(f'Failed to subscribe to channel_stream_end event for {broadcaster.name}\'s channel.')
+
+            # try:
+            #     """ create new event subscription for channel_points_redeemed event """
+            #     await self.esclient.subscribe_channel_points_reward_added(broadcaster=broadcaster.id, reward_id=)
+            # except twitchio.HTTPException:
+            #     print(f'Failed to subscribe to channel_points_redeemed event for {broadcaster.name}\'s channel.')
+
+            # try:
+            #     """ create new event subscription for channel_points_reward_updated event """
+            #     await self.esclient.subscribe_channel_points_reward_updated(broadcaster=broadcaster.id, reward_id=)
+            # except twitchio.HTTPException:
+            #     print(f'Failed to subscribe to channel_points_reward_updated event for {broadcaster.name}\'s channel.')
+
+            # try:
+            #     """ create new event subscription for channel_points_reward_removed event """
+            #     await self.esclient.subscribe_channel_points_reward_removed(broadcaster=broadcaster.id, reward_id=)
+            # except twitchio.HTTPException:
+            #     print(f'Failed to subscribe to channel_points_reward_removed event for {broadcaster.name}\'s channel.')
+
+            # try:
+            #     """ create new event subscription for channel_points_redeemed event """
+            #     await self.esclient.subscribe_channel_points_redeemed(broadcaster=broadcaster.id)
+            # except twitchio.HTTPException:
+            #     print(f'Failed to subscribe to channel_points_redeemed event for {broadcaster.name}\'s channel.')
+
+            # try:
+            #     """ create new event subscription for channel_points_redeem_updated event """
+            #     await self.esclient.subscribe_channel_points_redeem_updated(broadcaster=broadcaster.id)
+            # except twitchio.HTTPException:
+            #     print(f'Failed to subscribe to channel_points_redeem_updated event for {broadcaster.name}\'s channel.')
+
     async def delete_event_subscriptions(self):
         """ before registering new event subscriptions remove old event subs """
         app_token = self.database.fetch_app_token()[0]['access_token']
@@ -117,107 +164,8 @@ class Bot(commands.Bot):
         if message.echo:
             return
         print('Bot: ', message.author.name, message.content)  # Print the contents of our message to console...
+        # TODO: if message content is a known follow bot account message then autoban the author
         await self.handle_commands(message)  # we have commands overriding the default `event_message`
-
-    async def event_eventsub_notification_follow(self, payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when someone follows the channel """
-        print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
-        await self.get_channel(payload.data.broadcaster.name).send(
-            f'Thank you {payload.data.user.name} for following the channel!')
-
-    async def kill_everyone(self):
-        """ invoke skynet """
-        pass
-
-    async def event_eventsub_notification_cheer(self, payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when someone cheers in the channel """
-        event_string = ""
-        if payload.data.is_anonymous:
-            event_string = f"Received cheer event from anonymous, " \
-                           f"cheered {payload.data.bits} bits, " \
-                           f"message '{payload.data.message}'."
-        else:
-            event_string = f"Received cheer event from {payload.data.user.name} [{payload.data.user.id}], " \
-                           f"cheered {payload.data.bits} bits, " \
-                           f"message '{payload.data.message}'."
-        print(event_string)
-        # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
-        if len(streams) >= 1 and streams[0].type == 'live':
-            row = self.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-            await payload.data.broadcaster.create_marker(token=row['access_token'],
-                                                         description=event_string)
-        if not payload.data.is_anonymous:
-            # Get cheerer info
-            channel = await self._http.get_channels(broadcaster_id=payload.data.user.id)
-            clips = await self._http.get_clips(broadcaster_id=payload.data.user.id)
-            # Acknowledge raid and reply with a channel bio
-            await self.get_channel(payload.data.broadcaster.name).send(
-                f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!")
-            # shoutout the subscriber
-            if len(clips) >= 1:
-                """ check if sub is a streamer with clips on their channel and shoutout with clip player """
-                await self.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
-                await self.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
-            else:
-                """ shoutout without clip player """
-                await self.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
-
-    async def event_eventsub_notification_subscription(self, payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when someone subscribes the channel """
-        print(f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-              f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
-        # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            access_token = self.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-            await payload.data.broadcaster.create_marker(token=access_token,
-                                                         description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-                                                                     f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
-        # Get subscriber info
-        channel = await self._http.get_channels(broadcaster_id=payload.data.user.id)
-        clips = await self._http.get_clips(broadcaster_id=payload.data.user.id)
-        # Acknowledge raid and reply with a channel bio
-        if len(channel) >= 1:
-            await self.get_channel(payload.data.broadcaster.name).send(
-                f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} subscription!")
-        # shoutout the subscriber
-        if len(clips) >= 1:
-            """ check if sub is a streamer with clips on their channel and shoutout with clip player """
-            await self.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
-            await self.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
-        else:
-            """ shoutout without clip player """
-            await self.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
-
-    async def event_eventsub_notification_raid(self, payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when someone raids the channel """
-        print(f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-              f"with {payload.data.viewer_count} viewers!")
-        broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, self.channel_broadcasters))[0]
-        # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await self._http.get_streams(user_ids=[payload.data.reciever.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            access_token = self.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-            await broadcaster.create_marker(token=access_token,
-                                            description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-                                                        f"with {payload.data.viewer_count} viewers!")
-        # Get raider info
-        channel = await self._http.get_channels(broadcaster_id=payload.data.raider.id)
-        clips = await self._http.get_clips(broadcaster_id=payload.data.raider.id)
-        # Acknowledge raid and reply with a channel bio
-        broadcaster_user = await self._http.get_users(ids=[payload.data.reciever.id], logins=[])
-        await broadcaster.channel.send(f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
-                                       f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
-                                       f"My name is {broadcaster_user[0]['display_name']}, {broadcaster_user[0]['description']}")
-        # shoutout the raider
-        if len(clips) >= 1:
-            """ check if raider is a streamer with clips on their channel and shoutout with clip player """
-            await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
-            await self.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
-        else:
-            """ shoutout without clip player """
-            await self.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
 
     # check for any user logins and validate their access_tokens.
     # If invalid or missing then generate new tokens
@@ -272,49 +220,32 @@ class Bot(commands.Bot):
             #                     expires_in=auth_result['expires_in'], refresh_token=auth_result['refresh_token'],
             #                     scope=auth_result['scope'])
 
-    async def event_eventsub_notification_stream_start(self, payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when stream goes live """
-        print(
-            f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
-
-        # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
-        await self.delete_all_custom_rewards(payload.data.broadcaster)
-
-        # Add new custom rewards
-        await self.add_kill_my_shell_redemption_reward(payload.data.broadcaster)
-        await self.add_vip_auto_redemption_reward(payload.data.broadcaster)
-
-        # GET THE CHANNEL DATA BECAUSE TWITCHIO IS A PIECE OF FUCKING SHIT
-        channel = await self._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-        await channel.send(f'This stream is now online!')
-
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
-        if channel[0]['game_id'] in [509670, 1469308723]:  # Science & Technology, Software and Game Development
-            row = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        if int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
+            user_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
                                            cost=6666,
                                            prompt="Immediately closes the last terminal window that was opened without warning!",
                                            global_cooldown=5 * 60,
-                                           token=row['access_token'])
+                                           token=user_token_resultset['access_token'])
 
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
-        row = self.database.fetch_user_access_token_from_id(broadcaster.id)
-        vips = await self._http.get_channel_vips(token=row['access_token'],
+        user_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        vips = await self._http.get_channel_vips(token=user_token_resultset['access_token'],
                                                  broadcaster_id=broadcaster.id,
                                                  first=100)
         if len(vips) < settings.MAX_VIP_SLOTS:
-            access_token = self.database.fetch_user_access_token_from_id(broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="VIP",
                                            cost=80085,
                                            prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
-                                           token=row['access_token'])
+                                           token=user_token_resultset['access_token'])
 
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
@@ -334,12 +265,13 @@ class Bot(commands.Bot):
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
         """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
-        # TODO: handle blank game_name
+        message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
+        if not channel['game_name'] == '':
+            message += f" They were last playing \'{channel['game_name']}\'."
         user_access_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
         await self._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
                                                 broadcaster_id=broadcaster.id,
-                                                message=f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}! "
-                                                         f"They were last playing \'{channel['game_name']}\'.",
+                                                message=message,
                                                 moderator_id=broadcaster.id,
                                                 # This ID must match the user ID in the user access token.
                                                 color=color)  # blue green orange purple primary
@@ -351,19 +283,53 @@ class Bot(commands.Bot):
                                        to_broadcaster_id=channel['broadcaster_id'],
                                        moderator_id=broadcaster.id)
 
+    @commands.command()
+    async def kill_everyone(self, ctx: commands.Context):
+        """ invoke skynet """
+        await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
+
     # TODO: add chatgpt commands https://github.com/openai/openai-python
+    @commands.command()
+    async def chatgpt(self, ctx: commands.Context):
+        """ type !chatgpt <query> to ask chatgpt a question """
+        await ctx.send(f'Hello {ctx.author.name}!')
+
     # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
+    @commands.command()
+    async def discord(self, ctx: commands.Context):
+        """ type !discord to do something with discord """
+        await ctx.send(f'Hello {ctx.author.name}!')
 
     @commands.command()
     async def hello(self, ctx: commands.Context):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
 
+    @commands.command()
+    async def raids(self, ctx: commands.Context):
+        """ type !raids @username to print out how many raids you've received from the user """
+        param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
+        if len(param_username) >= 1:
+            raider_login_resultset: sqlite3.Row = self.database.fetch_raids_from_login(raider_login=param_username)
+            await ctx.send(f"{param_username} has raided the channel {len(raider_login_resultset)} times!")
+
+    @commands.command()
+    async def redemptions(self, ctx: commands.Context):
+        """ type !redemptions to force the custom redemptions to load """
+        broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+        if int(ctx.author.id) == broadcaster.id or int(ctx.author.id) == 125444292:
+            # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
+            await self.delete_all_custom_rewards(broadcaster)
+            # Add new custom rewards
+            await self.add_kill_my_shell_redemption_reward(broadcaster)
+            await self.add_vip_auto_redemption_reward(broadcaster)
+
     @commands.command(aliases=['so'])
     async def shoutout(self, ctx: commands.Context):
         """ type !shoutout to shout out a viewers channel """
-        param_username = str(ctx.message.content).split(' ')[1]
-        to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
-        to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
-        from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-        await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
+        param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
+        if len(param_username) >= 1:
+            to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
+            to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
+            from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+            await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
