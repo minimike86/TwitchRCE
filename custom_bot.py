@@ -250,17 +250,17 @@ class Bot(commands.Bot):
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
-        row = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        user_access_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
         rewards = await self._http.get_rewards(broadcaster_id=broadcaster.id,
                                                only_manageable=True,
-                                               token=row['access_token'])
+                                               token=user_access_token_resultset['access_token'])
         print(f"Got rewards: [{json.dumps(rewards)}]")
         if rewards is not None:
             custom_reward_titles = ["Kill My Shell", "VIP"]
             for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
                 await self._http.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                       reward_id=reward["id"],
-                                                      token=row['access_token'])
+                                                      token=user_access_token_resultset['access_token'])
                 print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
@@ -276,12 +276,13 @@ class Bot(commands.Bot):
                                                 # This ID must match the user ID in the user access token.
                                                 color=color)  # blue green orange purple primary
         """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
-            The channel giving a Shoutout must be live. """
-        streams = await self._http.get_streams(user_ids=[broadcaster.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
-                                       to_broadcaster_id=channel['broadcaster_id'],
-                                       moderator_id=broadcaster.id)
+            The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
+        if channel['broadcaster_id'] != broadcaster.id:
+            streams = await self._http.get_streams(user_ids=[broadcaster.id])
+            if len(streams) >= 1 and streams[0]['type'] == 'live':
+                await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
+                                           to_broadcaster_id=channel['broadcaster_id'],
+                                           moderator_id=broadcaster.id)
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
