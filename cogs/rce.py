@@ -10,7 +10,7 @@ from asyncio import CancelledError
 
 import twitchio
 from twitchio import errors
-from twitchio.ext import commands
+from twitchio.ext import commands, pubsub
 
 import custom_bot
 import settings
@@ -135,11 +135,13 @@ class RCECog(commands.Cog):
             except RuntimeError:
                 await ctx.channel.send('An exception occurred')
 
-    @commands.command()
-    async def killmyshell(self, ctx: commands.Context):
+    async def killmyshell(self, broadcaster_id: int, author_login: str, event: pubsub.PubSubChannelPointsMessage):
         # get channel broadcaster
-        broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        row = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
+        broadcaster = await self.bot._http.get_users(ids=[str(broadcaster_id)], logins=[])
+        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(broadcaster[0]['id'])
+        broadcaster_access_token = broadcaster_access_token_resultset['access_token']
+        mod_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
+        mod_access_token = mod_access_token_resultset['access_token']
 
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
         proc_id = subprocess.check_output(cmd1, shell=True).decode().split(" ")[0].strip()
@@ -147,17 +149,16 @@ class RCECog(commands.Cog):
             try:
                 cmd2 = f"xkill -id {proc_id}"
                 result = subprocess.check_output(cmd2, shell=True)
-                result = f"{ctx.author.name} just killed my shell. " \
+                result = f"{author_login} just killed {broadcaster[0]['display_name']}'s shell. " \
                          + f"stdout: {result.decode()}"
                 try:
-                    # TODO: enable redemption eventsub
-                    # await self.bot._http.update_reward_redemption_status(token=row['access_token'],
-                    #                                                      broadcaster_id=500,
-                    #                                                      reward_id=event.id,
-                    #                                                      custom_reward_id=event.reward.id,
-                    #                                                      status=True)
+                    await self.bot._http.update_reward_redemption_status(token=broadcaster_access_token,
+                                                                         broadcaster_id=str(broadcaster[0]['id']),
+                                                                         reward_id=event.id,
+                                                                         custom_reward_id=event.reward.id,
+                                                                         status=True)
                     print(f"{textwrap.shorten(result, width=500)}")
-                    await self.bot._http.post_chat_announcement(token=row['access_token'],
+                    await self.bot._http.post_chat_announcement(token=mod_access_token,
                                                                 broadcaster_id=str(broadcaster[0]['id']),
                                                                 moderator_id=self.bot.user_id,
                                                                 message=f"{textwrap.shorten(result, width=500)}",
@@ -169,17 +170,16 @@ class RCECog(commands.Cog):
                 print(f"something broke {type(err)}", traceback.format_exc())
         else:
             try:
-                # TODO: enable redemption eventsub
-                # await self.bot._http.update_reward_redemption_status(token=row['access_token'],
-                #                                                      broadcaster_id=self.bot.user_id,
-                #                                                      reward_id=event.id,
-                #                                                      custom_reward_id=event.reward.id,
-                #                                                      status=False)
-                print(f"Unlucky {ctx.author.name} but there are no terminals open to kill")
-                await self.bot._http.post_chat_announcement(token=row['access_token'],
+                await self.bot._http.update_reward_redemption_status(token=broadcaster_access_token,
+                                                                     broadcaster_id=str(broadcaster[0]['id']),
+                                                                     reward_id=event.id,
+                                                                     custom_reward_id=event.reward.id,
+                                                                     status=False)
+                print(f"Unlucky {author_login} but there are no terminals open to kill")
+                await self.bot._http.post_chat_announcement(token=mod_access_token,
                                                             broadcaster_id=str(broadcaster[0]['id']),
                                                             moderator_id=self.bot.user_id,
-                                                            message=f"Unlucky {ctx.author.name} there are no terminals open to kill; your channel points have been refunded",
+                                                            message=f"Unlucky {author_login} there are no terminals open to kill; your channel points have been refunded",
                                                             color="purple")
             except errors.AuthenticationError:
-                print(f"Unlucky {ctx.author.name} but there are no terminals open to kill")
+                print(f"Unlucky {author_login} but there are no terminals open to kill")

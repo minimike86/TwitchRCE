@@ -1,7 +1,10 @@
 import asyncio
 
-from twitchio.ext import eventsub, pubsub
+import twitchio
+from twitchio.ext import eventsub, pubsub, commands
+from twitchio.ext.commands import Cog, Context
 
+from cogs.rce import RCECog
 from custom_bot import Bot
 from db.database import Database
 
@@ -75,16 +78,33 @@ except errors.AuthenticationError:
     loop.run_until_complete(bot.__validate__(user_token=user_access_token))
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
-bot.loop.run_until_complete(bot.__psclient_init__(user_token='j2v6x75o7k7301nkub0sy3tsyhoevw', channel_id=125444292))  # start the pub subscription client
+
+user_access_token_resultset = [row for row in db.fetch_user_from_login('msec')][0]
+bot.loop.run_until_complete(bot.__psclient_init__(user_token=user_access_token_resultset['access_token'],
+                                                  channel_id=int(user_access_token_resultset['broadcaster_id'])))  # start the pub subscription client
+
 bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
 
 
 @bot.event()
 async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
-    # do stuff on channel point redemptions
-    print(f"Event: {event.channel_id}, {event.id}, {event.status}, {event.timestamp} \n"
+    # Log redemption request - reward: CustomReward, user: PartialUser
+    print(f"======================================================================== \n"
+          f"Event: {event.channel_id}, {event.id}, {event.status}, {event.timestamp} \n"
           f"Reward: {event.reward.id}, {event.reward.title}, {event.reward.cost} \n"
-          f"User: {event.user.id}, {event.user.name}")
+          f"User: {event.user.id}, {event.user.name} \n"
+          f"========================================================================")
+
+    # Check if reward can be redeemed at this time
+    if not event.reward.paused and event.reward.in_stock and event.reward.enabled:
+
+        if event.reward.title == 'Kill My Shell':
+            rce_cog: RCECog = bot.cogs['RCECog']
+            await rce_cog.killmyshell(broadcaster_id=event.channel_id, author_login=event.user.name, event=event)
+
+        # TODO: respond to VIP redemption
+        if event.reward.title == 'VIP':
+            pass
 
 
 @bot.event()
