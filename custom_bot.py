@@ -285,6 +285,19 @@ class Bot(commands.Bot):
                                            moderator_id=broadcaster.id)
 
     @commands.command()
+    async def add_channel_subs(self, ctx: commands.Context):
+        user_resultset = self.database.fetch_user_from_login(ctx.channel.name)
+        subs = await self._http.get_channel_subscriptions(token=user_resultset[0]['access_token'],
+                                                          broadcaster_id=user_resultset[0]['broadcaster_id'])
+        for sub in subs:
+            self.database.insert_sub_data(broadcaster_id=sub['broadcaster_id'], broadcaster_login=sub['broadcaster_login'],
+                                          broadcaster_name=sub['broadcaster_name'],
+                                          gifter_id=sub['gifter_id'], gifter_login=sub['gifter_login'],
+                                          gifter_name=sub['gifter_name'], is_gift=sub['is_gift'],
+                                          plan_name=sub['plan_name'], tier=sub['tier'], user_id=sub['user_id'],
+                                          user_name=sub['user_name'], user_login=sub['user_login'])
+
+    @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
         """ invoke skynet """
         await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')

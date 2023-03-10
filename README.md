@@ -2,13 +2,14 @@
 Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machine
 
 ## Commands | [TwitchIO Commands Docs](https://twitchio.dev/en/latest/exts/commands.html)
-| Command                                             | Outcome                                                                                                                                                 |
-|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `!hello`                                            | Says hello to author                                                                                                                                    |
-| `!exec <command>` <br/>_OR_ `!cmd <command>`        | Runs any bash command (if it's in the allow list)                                                                                                       |
-| `!raids <@username>`                                | displays how many raids you've received from the user                                                                                                   |
-| `!shoutout <@username>` <br/>_OR_ `!so <@username>` | Sends a shoutout announcement message                                                                                                                   |
-| `!redemptions`                                      | Creates custom channel point rewards _(The same outcome as stream_start event just incase the bot wasn't active when the stream_start event occurred.)_ |
+| Command                                             | Outcome                                                                                                                                                 | Condition                                                                               |
+|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `!hello`                                            | Says hello to author                                                                                                                                    |                                                                                         |
+| `!exec <command>` <br/>_OR_ `!cmd <command>`        | Runs any bash command (if it's in the allow list)                                                                                                       | Streaming in `Science & Technology` <br/>_OR_ `Software and Game Development` category. |
+| `!raids <@username>`                                | displays how many raids you've received from the user                                                                                                   |                                                                                         |
+| `!shoutout <@username>` <br/>_OR_ `!so <@username>` | Sends a shoutout announcement message                                                                                                                   |                                                                                         |
+| `!redemptions`                                      | Creates custom channel point rewards _(The same outcome as stream_start event just incase the bot wasn't active when the stream_start event occurred.)_ |                                                                                         |
+| `!add_channel_subs`                                 | Adds channel subscribers to sub database table                                                                                                          |                                                                                         |
 
 ### User Specific Commands
 | Command                                             | Outcome                               |
@@ -16,10 +17,10 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `!ohlook`                                           | Sends a shoutout to StairsTheTrashman |
 
 ## Redemptions | [Managing Channel Point Rewards](https://help.twitch.tv/s/article/channel-points-guide?language=en_US#managing)
-| Reward          | Cost  | Outcome                                                                                                                                                                                                                 |
-|-----------------|-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Kill My Shell` | 6666  | Immediately closes the last terminal window that was opened without warning! Confirms success in a chat announcement.                                                                                                   |
-| `VIP`           | 80085 | If you have spare VIP slots it will automatically grant the redeemer the VIP role. VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode! Confirms success in a chat announcement. |
+| Reward          | Cost  | Outcome                                                                                                                                                                                                                 | Condition                                                                    |
+|-----------------|-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| `Kill My Shell` | 6666  | Immediately closes the last terminal window that was opened without warning! Confirms success in a chat announcement.                                                                                                   | Streaming in `Science & Technology` <br/>_OR_ `Software and Game Development` category. |
+| `VIP`           | 80085 | If you have spare VIP slots it will automatically grant the redeemer the VIP role. VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode! Confirms success in a chat announcement. |                                                                              |
 
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
 | Event Type                          | Response                                              |

@@ -1,8 +1,6 @@
 import asyncio
 
-import twitchio
-from twitchio.ext import eventsub, pubsub, commands
-from twitchio.ext.commands import Cog, Context
+from twitchio.ext import eventsub, pubsub
 
 from cogs.rce import RCECog
 from cogs.vip import VIPCog
@@ -100,11 +98,12 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
     if not event.reward.paused and event.reward.in_stock and event.reward.enabled:
 
         if event.reward.title == 'Kill My Shell':
+            # noinspection PyTypeChecker
             rce_cog: RCECog = bot.cogs['RCECog']
             await rce_cog.killmyshell(broadcaster_id=event.channel_id, author_login=event.user.name, event=event)
 
-        # TODO: respond to VIP redemption
         if event.reward.title == 'VIP':
+            # noinspection PyTypeChecker
             vip_cog: VIPCog = bot.cogs['VIPCog']
             await vip_cog.add_channel_vip(channel_id=event.channel_id, author_id=event.user.id, author_login=event.user.name, event=event)
 
@@ -186,39 +185,39 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
 
 @bot.event()
 async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when someone raids the channel """
-        print(f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-              f"with {payload.data.viewer_count} viewers!")
-        # Log the raid occurence
-        db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
-                            receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
-                            viewer_count=payload.data.viewer_count)
-        # Respond to the raid
-        broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, bot.channel_broadcasters))[0]
-        # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await bot._http.get_streams(user_ids=[payload.data.reciever.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.reciever.id)
-            access_token = [str(token) for token in access_token_resultset][0]
-            await broadcaster.create_marker(token=access_token,
-                                            description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-                                                        f"with {payload.data.viewer_count} viewers!")
-        # Get raider info
-        channel = await bot._http.get_channels(broadcaster_id=payload.data.raider.id)
-        clips = await bot._http.get_clips(broadcaster_id=payload.data.raider.id)
-        # Acknowledge raid and reply with a channel bio
-        broadcaster_user = await bot._http.get_users(ids=[payload.data.reciever.id], logins=[])
-        await broadcaster.channel.send(f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
-                                       f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
-                                       f"My name is {broadcaster_user[0]['display_name']}, {broadcaster_user[0]['description']}")
-        # shoutout the raider
-        if len(clips) >= 1:
-            """ check if raider is a streamer with clips on their channel and shoutout with clip player """
-            await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
-            await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
-        else:
-            """ shoutout without clip player """
-            await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
+    """ event triggered when someone raids the channel """
+    print(f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
+          f"with {payload.data.viewer_count} viewers!")
+    # Log the raid occurence
+    db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
+                        receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
+                        viewer_count=payload.data.viewer_count)
+    # Respond to the raid
+    broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, bot.channel_broadcasters))[0]
+    # create stream marker (Stream markers cannot be created when the channel is offline)
+    streams = await bot._http.get_streams(user_ids=[payload.data.reciever.id])
+    if len(streams) >= 1 and streams[0]['type'] == 'live':
+        access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.reciever.id)
+        access_token = [str(token) for token in access_token_resultset][0]
+        await broadcaster.create_marker(token=access_token,
+                                        description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
+                                                    f"with {payload.data.viewer_count} viewers!")
+    # Get raider info
+    channel = await bot._http.get_channels(broadcaster_id=payload.data.raider.id)
+    clips = await bot._http.get_clips(broadcaster_id=payload.data.raider.id)
+    # Acknowledge raid and reply with a channel bio
+    broadcaster_user = await bot._http.get_users(ids=[payload.data.reciever.id], logins=[])
+    await broadcaster.channel.send(f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
+                                   f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
+                                   f"My name is {broadcaster_user[0]['display_name']}, {broadcaster_user[0]['description']}")
+    # shoutout the raider
+    if len(clips) >= 1:
+        """ check if raider is a streamer with clips on their channel and shoutout with clip player """
+        await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+        await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
+    else:
+        """ shoutout without clip player """
+        await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
 
 
 @bot.event()
@@ -240,15 +239,15 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
 
 @bot.event()
 async def event_eventsub_notification_stream_end(payload: eventsub.NotificationEvent) -> None:
-        """ event triggered when stream goes offline """
-        print(
-            f"Received StreamOfflineData event! [broadcaster.name={payload.data.broadcaster.name}]")
+    """ event triggered when stream goes offline """
+    print(
+        f"Received StreamOfflineData event! [broadcaster.name={payload.data.broadcaster.name}]")
 
-        # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
-        await bot.delete_all_custom_rewards(payload.data.broadcaster)
+    # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
+    await bot.delete_all_custom_rewards(payload.data.broadcaster)
 
-        channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-        await channel[0].send(f'This stream is now offline!')
+    channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
+    await channel[0].send(f'This stream is now offline!')
 
 bot.run()
 
