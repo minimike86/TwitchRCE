@@ -2,32 +2,42 @@
 Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machine
 
 ## Commands | [TwitchIO Commands Docs](https://twitchio.dev/en/latest/exts/commands.html)
-* `!exec <command>` OR `!cmd <command>` - *Runs any bash command (if it's in the allow list)*
-* `!add_channel_vip` - *Adds user to an available vip slot*
-* `!hello` - *Says hello to author*
-* `!raids <@username>` - *displays how many raids you've received from the user*
-* `!shoutout <@username>` OR `!so <@username>` - *Sends a shoutout announcement message*
+| Command                                             | Outcome                                                                                                                                                 |
+|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `!hello`                                            | Says hello to author                                                                                                                                    |
+| `!exec <command>` <br/>_OR_ `!cmd <command>`        | Runs any bash command (if it's in the allow list)                                                                                                       |
+| `!raids <@username>`                                | displays how many raids you've received from the user                                                                                                   |
+| `!shoutout <@username>` <br/>_OR_ `!so <@username>` | Sends a shoutout announcement message                                                                                                                   |
+| `!redemptions`                                      | Creates custom channel point rewards _(The same outcome as stream_start event just incase the bot wasn't active when the stream_start event occurred.)_ |
+
+### User Specific Commands
+| Command                                             | Outcome                               |
+|-----------------------------------------------------|---------------------------------------|
+| `!ohlook`                                           | Sends a shoutout to StairsTheTrashman |
 
 ## Redemptions | [Managing Channel Point Rewards](https://help.twitch.tv/s/article/channel-points-guide?language=en_US#managing)
-* `killmyshell` - *Finds open terminal windows and closes the most recently opened*
+| Reward          | Cost  | Outcome                                                                                                                                                                                                                 |
+|-----------------|-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Kill My Shell` | 6666  | Immediately closes the last terminal window that was opened without warning! Confirms success in a chat announcement.                                                                                                   |
+| `VIP`           | 80085 | If you have spare VIP slots it will automatically grant the redeemer the VIP role. VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode! Confirms success in a chat announcement. |
 
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
-| Event Type                          | Response                                     |
-|-------------------------------------|----------------------------------------------|
-| *follow*                            | Chat message                                 |
-| *cheer*                             | Shoutout & Chat message                      |
-| *subscription*                      | Shoutout & Chat message                      |
-| *raid*                              | Shoutout & Chat message                      |
-| *hypetrain_begin*                   | `**NOT IMPLEMENTED**`                        |
-| *hypetrain_end*                     | `**NOT IMPLEMENTED**`                        |
-| *stream_start*                      | Creates channel point rewards & Chat message |
-| *stream_end*                        | Chat message                                 |
-| *channel_shoutout_create*           | `**NOT IMPLEMENTED**`                        |
-| *channel_shoutout_receive*          | `**NOT IMPLEMENTED**`                        |
-| *channel_charity_campaign_donate*   | `**NOT IMPLEMENTED**`                        |
-| *channel_charity_campaign_start*    | `**NOT IMPLEMENTED**`                        |
-| *channel_charity_campaign_progress* | `**NOT IMPLEMENTED**`                        |
-| *channel_charity_campaign_stop*     | `**NOT IMPLEMENTED**`                        |
+| Event Type                          | Response                                              |
+|-------------------------------------|-------------------------------------------------------|
+| *follow*                            | Chat message                                          |
+| *cheer*                             | Shoutout & Chat message                               |
+| *subscription*                      | Shoutout & Chat message                               |
+| *raid*                              | Shoutout & Chat message                               |
+| *hypetrain_begin*                   | `**NOT IMPLEMENTED**`                                 |
+| *hypetrain_end*                     | `**NOT IMPLEMENTED**`                                 |
+| *stream_start*                      | Creates custom channel point rewards & Chat message   |
+| *stream_end*                        | Removes custom channel point rewards & Chat message   |
+| *channel_shoutout_create*           | `**NOT IMPLEMENTED**`                                 |
+| *channel_shoutout_receive*          | `**NOT IMPLEMENTED**`                                 |
+| *channel_charity_campaign_donate*   | `**NOT IMPLEMENTED**`                                 |
+| *channel_charity_campaign_start*    | `**NOT IMPLEMENTED**`                                 |
+| *channel_charity_campaign_progress* | `**NOT IMPLEMENTED**`                                 |
+| *channel_charity_campaign_stop*     | `**NOT IMPLEMENTED**`                                 |
 
 ### Environment Variables
 * [Create an `.env` file](https://dev.to/jakewitcher/using-env-files-for-environment-variables-in-python-applications-55a1) with your TWITCH API tokens and your channel name to use this script:

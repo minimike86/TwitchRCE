@@ -235,7 +235,7 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
     await bot.add_vip_auto_redemption_reward(payload.data.broadcaster)
 
     channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-    await channel.send(f'This stream is now online!')
+    await channel[0].send(f'This stream is now online!')
 
 
 @bot.event()
@@ -248,7 +248,7 @@ async def event_eventsub_notification_stream_end(payload: eventsub.NotificationE
         await bot.delete_all_custom_rewards(payload.data.broadcaster)
 
         channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-        await channel.send(f'This stream is now offline!')
+        await channel[0].send(f'This stream is now offline!')
 
 bot.run()
 

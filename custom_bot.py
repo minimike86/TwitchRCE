@@ -242,7 +242,7 @@ class Bot(commands.Bot):
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="VIP",
                                            cost=80085,
-                                           prompt="VIPs have the ability to equip a special chat badge and chat in slow, sub-only, or follower-only modes!",
+                                           prompt="VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode!",
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
                                            token=user_token_resultset['access_token'])
