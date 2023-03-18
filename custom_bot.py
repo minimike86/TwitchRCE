@@ -20,9 +20,7 @@ class Bot(commands.Bot):
                          initial_channels=initial_channels)
         self.initial_channels = initial_channels
         self.database = database
-
         self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
-
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
@@ -314,6 +312,12 @@ class Bot(commands.Bot):
         if int(ctx.author.id) == 601591745 or int(ctx.author.id) == 125444292:
             await ctx.send(f'Oh look, it\'s the bitch!')
             await ctx.send(f'!so @stairsthetrashman')
+
+    # TODO: virustotal hash scanner
+    @commands.command()
+    async def virustotal(self, ctx: commands.Context):
+        """ type !virustotal <hash> to lookup a hash on virustotal """
+        await ctx.send(f'Hello {ctx.author.name}!')
 
     # TODO: add chatgpt commands https://github.com/openai/openai-python
     @commands.command()
