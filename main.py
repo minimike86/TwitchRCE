@@ -131,7 +131,7 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
     print(event_string)
     # create stream marker (Stream markers cannot be created when the channel is offline)
     streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
-    if len(streams) >= 1 and streams[0].type == 'live':
+    if len(streams) >= 1 and streams[0]['type'] == 'live':
         access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.reciever.id)
         access_token = [str(token) for token in access_token_resultset][0]
         await payload.data.broadcaster.create_marker(token=access_token,
