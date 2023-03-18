@@ -49,7 +49,7 @@ user_refresh_token = user_data['refresh_token']
 
 # Create a bot from your twitch client credentials
 bot = Bot(user_token=user_access_token,
-          initial_channels=[settings.BOT_USERNAME, 'msec'],
+          initial_channels=[settings.BOT_JOIN_CHANNEL],
           eventsub_public_url=eventsub_public_url,
           database=db)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
@@ -78,7 +78,7 @@ except errors.AuthenticationError:
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
 
-user_access_token_resultset = [row for row in db.fetch_user_from_login('msec')][0]
+user_access_token_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
 bot.loop.run_until_complete(bot.__psclient_init__(user_token=user_access_token_resultset['access_token'],
                                                   channel_id=int(user_access_token_resultset['broadcaster_id'])))  # start the pub subscription client
 
@@ -233,8 +233,8 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
     await bot.add_kill_my_shell_redemption_reward(payload.data.broadcaster)
     await bot.add_vip_auto_redemption_reward(payload.data.broadcaster)
 
-    channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-    await channel[0].send(f'This stream is now online!')
+    broadcaster = list(filter(lambda x: x.id == payload.data.broadcaster.id, bot.channel_broadcasters))[0]
+    await broadcaster.channel.send(f"This stream is now online!")
 
 
 @bot.event()
@@ -246,8 +246,8 @@ async def event_eventsub_notification_stream_end(payload: eventsub.NotificationE
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
     await bot.delete_all_custom_rewards(payload.data.broadcaster)
 
-    channel = await bot._http.get_channels(broadcaster_id=payload.data.broadcaster.id)
-    await channel[0].send(f'This stream is now offline!')
+    broadcaster = list(filter(lambda x: x.id == payload.data.broadcaster.id, bot.channel_broadcasters))[0]
+    await broadcaster.channel.send(f"This stream is now offline!")
 
 bot.run()
 
