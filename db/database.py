@@ -30,7 +30,7 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS app (id INTEGER PRIMARY KEY, access_token TEXT, expires_in INTEGER, token_type TEXT UNIQUE)")
         cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, broadcaster_id INTEGER UNIQUE, broadcaster_login TEXT UNIQUE, email TEXT, access_token TEXT, expires_in INTEGER, refresh_token TEXT, scope TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS sub (id INTEGER PRIMARY KEY, broadcaster_id INTEGER, broadcaster_login TEXT, broadcaster_name TEXT, gifter_id INTEGER, gifter_login TEXT, gifter_name TEXT, is_gift INTEGER, plan_name TEXT, tier INTEGER, user_id INTEGER, user_name TEXT, user_login TEXT, timestamp INTEGER)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS sub (id INTEGER PRIMARY KEY, broadcaster_id INTEGER, broadcaster_login TEXT, broadcaster_name TEXT, gifter_id INTEGER, gifter_login TEXT, gifter_name TEXT, is_gift INTEGER, plan_name TEXT, tier INTEGER, user_id INTEGER UNIQUE, user_name TEXT, user_login TEXT UNIQUE, is_active INTEGER, timestamp INTEGER)")
         cursor.execute("CREATE TABLE IF NOT EXISTS raid (id INTEGER PRIMARY KEY, raider_id INTEGER, raider_login TEXT, receiver_id INTEGER, receiver_login TEXT, viewer_count INTEGER, timestamp INTEGER )")
         self.conn.commit()
 
@@ -52,20 +52,26 @@ class Database:
         )
         self.conn.commit()
 
+    def update_all_subs_inactive(self):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE sub SET is_active = 0")
+        self.conn.commit()
+
     def insert_sub_data(self, broadcaster_id: str, broadcaster_login: str, broadcaster_name: str,
                         gifter_id: str, gifter_login: str, gifter_name: str, is_gift: bool,
-                        plan_name: str, tier: str, user_id: str, user_name: str, user_login: str):
+                        plan_name: str, tier: str, user_id: str, user_name: str, user_login: str, is_active: bool):
         """ insert new sub record """
         gifter_id = None if gifter_id == '' else gifter_id
         gifter_login = None if gifter_login == '' else gifter_login
         gifter_name = None if gifter_name == '' else gifter_name
         is_gift = 1 if is_gift else 0
+        is_active = 1 if is_active else 0
         cursor = self.conn.cursor()
         cursor.execute(
-            "INSERT INTO sub (broadcaster_id, broadcaster_login, broadcaster_name, gifter_id, gifter_login, gifter_name, is_gift, plan_name, tier, user_id, user_name, user_login, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())",
+            "INSERT OR REPLACE INTO sub (broadcaster_id, broadcaster_login, broadcaster_name, gifter_id, gifter_login, gifter_name, is_gift, plan_name, tier, user_id, user_name, user_login, is_active, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())",
             (int(broadcaster_id), broadcaster_login, broadcaster_name,
              gifter_id, gifter_login, gifter_name, is_gift,
-             plan_name, tier, int(user_id), user_name, user_login)
+             plan_name, tier, int(user_id), user_name, user_login, is_active)
         )
         self.conn.commit()
 
