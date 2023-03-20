@@ -131,3 +131,11 @@ dmypy.json
 /test_main.py
 /twitchrce.sqlite
 /malicious_rce.txt
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/.gitignore
+/.idea/dataSources.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/sqldialects.xml
+/.idea/TwitchRCE.iml
+/.idea/vcs.xml
