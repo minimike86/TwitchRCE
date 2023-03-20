@@ -28,9 +28,13 @@ class Bot(commands.Bot):
         """ load commands from cogs """
         from cogs.rce import RCECog
         self.add_cog(RCECog(self))
-
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
+
+    async def update_bot_http_token(self):
+        """ updates the bots http client token """
+        bot_access_token_resultset = self.database.fetch_user_access_token_from_login(broadcaster_login=settings.BOT_USERNAME)
+        self._http.token = bot_access_token_resultset['access_token']
 
     async def __channel_broadcasters_init__(self):
         """ get broadcasters objects for every user_login, you need these to send messages """
@@ -185,7 +189,13 @@ class Bot(commands.Bot):
                                            auth_result['access_token'], auth_result['expires_in'],
                                            auth_result['refresh_token'], auth_result['scope'])
             print(f"Updated access and refresh token for {user_data['broadcaster_login']}")
-            return auth_result
+            try:
+                auth_validate = await self._http.validate(token=auth_result['access_token'])
+                print(f"The refreshed user token for {login} is valid.")
+                await self.update_bot_http_token()
+                return auth_validate
+            except errors.AuthenticationError:
+                print(f"The refreshed user token for {login} is invalid.")
 
             # TODO: if tokens are missing use this code to obtain new tokens
             # # Get UserID via Authorization code grant flow
@@ -278,9 +288,25 @@ class Bot(commands.Bot):
         if channel['broadcaster_id'] != str(broadcaster.id):
             streams = await self._http.get_streams(user_ids=[broadcaster.id])
             if len(streams) >= 1 and streams[0]['type'] == 'live':
+                # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
                 await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
                                            to_broadcaster_id=channel['broadcaster_id'],
                                            moderator_id=broadcaster.id)
+
+    async def refresh_user_token(self, user: any):
+        twitch_api_auth_http = TwitchApiAuth()
+        auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
+        self.database.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
+                            auth_result['access_token'], auth_result['expires_in'],
+                            auth_result['refresh_token'], auth_result['scope'])
+        print(f"Updated access and refresh token for {user['broadcaster_login']}")
+        return auth_result
+
+    @commands.command()
+    async def reauth(self, ctx: commands.Context):
+        """ Try to refresh the bot user token """
+        await self.validate_token(settings.BOT_USERNAME)
+        await self.validate_token(ctx.channel.name)
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
@@ -336,6 +362,12 @@ class Bot(commands.Bot):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
 
+    # TODO: add lurk command
+    @commands.command()
+    async def lurk(self, ctx: commands.Context):
+        """ type !lurk to let the streamer know you're lurking """
+        await ctx.send(f'{ctx.author.name} is watching the stream with the /silent flag!')
+
     @commands.command()
     async def raids(self, ctx: commands.Context):
         """ type !raids @username to print out how many raids you've received from the user """
@@ -362,5 +394,6 @@ class Bot(commands.Bot):
         if len(param_username) >= 1:
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
+            # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
             from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
             await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')

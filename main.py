@@ -1,5 +1,6 @@
 import asyncio
 
+from twitchio import errors
 from twitchio.ext import eventsub, pubsub
 
 from cogs.rce import RCECog
@@ -8,8 +9,6 @@ from custom_bot import Bot
 from db.database import Database
 
 from twitch_api_auth import TwitchApiAuth
-
-from twitchio import errors
 
 from ngrok import NgrokClient
 import settings
@@ -58,22 +57,12 @@ bot._http.client_id = settings.CLIENT_ID
 bot._http.client_secret = settings.CLIENT_SECRET
 bot._http.app_token = app_access_token
 
-
-async def refresh_user_token(user: any):
-    twitch_api_auth_http = TwitchApiAuth()
-    auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
-    db.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
-                        auth_result['access_token'], auth_result['expires_in'],
-                        auth_result['refresh_token'], auth_result['scope'])
-    print(f"Updated access and refresh token for {user['broadcaster_login']}")
-    return auth_result
-
 try:
     """ Try to authenticate the bot with the stored bot user token """
     loop.run_until_complete(bot.__validate__(user_token=user_access_token))
 except errors.AuthenticationError:
     """ Try to refresh the bot user token """
-    user_access_token = bot.loop.run_until_complete(refresh_user_token(user=user_data))['access_token']
+    user_access_token = bot.loop.run_until_complete(bot.refresh_user_token(user=user_data))['access_token']
     loop.run_until_complete(bot.__validate__(user_token=user_access_token))
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
@@ -83,7 +72,6 @@ bot.loop.run_until_complete(bot.__psclient_init__(user_token=user_access_token_r
                                                   channel_id=int(user_access_token_resultset['broadcaster_id'])))  # start the pub subscription client
 
 bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
-
 
 @bot.event()
 async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
@@ -141,7 +129,7 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
         channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
         clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
         # Acknowledge raid and reply with a channel bio
-        await bot.get_channel(payload.data.broadcaster.name).send(
+        await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
             f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!")
         # shoutout the subscriber
         if len(clips) >= 1:
@@ -155,32 +143,61 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
 
 @bot.event()
 async def event_eventsub_notification_subscription(payload: eventsub.NotificationEvent) -> None:
-    """ event triggered when someone subscribes the channel """
-    print(f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-          f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
-    # create stream marker (Stream markers cannot be created when the channel is offline)
-    streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
-    if len(streams) >= 1 and streams[0]['type'] == 'live':
-        access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-        access_token = [str(token) for token in access_token_resultset][0]
-        await payload.data.broadcaster.create_marker(token=access_token,
-                                                     description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-                                                                 f"with tier {payload.data.tier / 1000} sub. {'[GIFTED]' if payload.data.is_gift else ''}")
-    # Get subscriber info
-    channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
-    clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
-    # Acknowledge raid and reply with a channel bio
-    if len(channel) >= 1:
-        await bot.get_channel(payload.data.broadcaster.name).send(
-            f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} subscription!")
-    # shoutout the subscriber
-    if len(clips) >= 1:
-        """ check if sub is a streamer with clips on their channel and shoutout with clip player """
-        await bot.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
-        await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+    # Check if sub is gifted
+    if not payload.data.is_gift:
+        """ event triggered when someone subscribes the channel """
+
+        print(f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
+              f"with tier {payload.data.tier / 1000} sub.")
+        # create stream marker (Stream markers cannot be created when the channel is offline)
+        streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
+        if len(streams) >= 1 and streams[0]['type'] == 'live':
+            access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+            access_token = [str(token) for token in access_token_resultset][0]
+            await payload.data.broadcaster.create_marker(token=access_token,
+                                                         description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
+                                                                     f"with tier {payload.data.tier / 1000} sub.")
+        # Get subscriber info
+        channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
+        # Acknowledge raid and reply with a channel bio
+        if len(channel) >= 1:
+            try:
+                await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
+                    f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} subscription!")
+            except AttributeError:  # AttributeError: 'NoneType' object has no attribute 'send'
+                pass
+        # shoutout the subscriber
+        clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
+        if len(clips) >= 1:
+            """ check if sub is a streamer with clips on their channel and shoutout with clip player """
+            await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(f"!so {channel[0]['broadcaster_login']}")
+            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+        else:
+            """ shoutout without clip player """
+            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+
     else:
-        """ shoutout without clip player """
-        await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+        """ event triggered when someone gifts a sub to someone in the channel """
+        print(f"Received gift subscription event from {payload.data.user.name} [{payload.data.user.id}], "
+              f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]")
+        # create stream marker (Stream markers cannot be created when the channel is offline)
+        streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
+        if len(streams) >= 1 and streams[0]['type'] == 'live':
+            access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+            access_token = [str(token) for token in access_token_resultset][0]
+            await payload.data.broadcaster.create_marker(token=access_token,
+                                                         description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
+                                                                     f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]")
+        # Get subscriber info
+        channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
+        # Acknowledge raid and reply with a channel bio
+        if len(channel) >= 1:
+            try:
+                await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
+                    f"Congratulations @{channel[0]['broadcaster_login']} on receiving a gifted tier {int(payload.data.tier / 1000)} subscription!")
+            except AttributeError:  # AttributeError: 'NoneType' object has no attribute 'send'
+                pass
+
 
 
 @bot.event()
