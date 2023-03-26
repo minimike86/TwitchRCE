@@ -91,7 +91,8 @@ class Bot(commands.Bot):
 
             try:
                 """ create new event subscription for channel_follows event"""
-                await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
+                event = await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
+                print(f'Subscribed to channel_follows event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_follows event for {broadcaster.name}\'s channel.')
 

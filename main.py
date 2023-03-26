@@ -78,12 +78,6 @@ bot = Bot(user_token=user_access_token,
           database=db)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
-# bot._http.client_id = settings.CLIENT_ID
-# bot._http.client_secret = settings.CLIENT_SECRET
-# bot._http.app_token = app_access_token
-# bot._http.nick = None
-# bot._connection.initial_channels = [settings.BOT_JOIN_CHANNEL]
-# bot._connection._token = user_access_token
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
 
@@ -135,7 +129,7 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
 
 
 @bot.event()
-async def event_eventsub_notification_follow(payload: eventsub.NotificationEvent) -> None:
+async def event_eventsub_notification_followV2(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone follows the channel """
     print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
     await bot.get_channel(payload.data.broadcaster.name).send(
