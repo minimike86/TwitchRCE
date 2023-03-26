@@ -35,6 +35,19 @@ class Bot(commands.Bot):
         bot_access_token_resultset = self.database.fetch_user_access_token_from_login(broadcaster_login=settings.BOT_USERNAME)
         self._http.token = bot_access_token_resultset['access_token']
 
+    async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
+        # create stream marker (Stream markers cannot be created when the channel is offline)
+        streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
+        if len(streams) >= 1 and streams[0]['type'] == 'live':
+            access_token_resultset = None
+            if hasattr(payload.data, 'reciever'):
+                access_token_resultset = self.database.fetch_user_access_token_from_id(payload.data.reciever.id)
+            else:
+                access_token_resultset = self.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+            access_token = [str(token) for token in access_token_resultset][0]
+            await payload.data.broadcaster.create_marker(token=access_token,
+                                                         description=event_string)
+
     async def __channel_broadcasters_init__(self):
         """ get broadcasters objects for every user_login, you need these to send messages """
         user_login_resultset = self.database.fetch_all_user_logins()
@@ -388,7 +401,7 @@ class Bot(commands.Bot):
 
     @commands.command(aliases=['so'])
     async def shoutout(self, ctx: commands.Context):
-        """ type !shoutout to shout out a viewers channel """
+        """ type !shoutout <@username> to shout out a viewers channel """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
         if len(param_username) >= 1:
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])

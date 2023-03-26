@@ -155,13 +155,11 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
                        f"cheered {payload.data.bits} bits, " \
                        f"message '{payload.data.message}'."
     print(event_string)
+
     # create stream marker (Stream markers cannot be created when the channel is offline)
-    streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
-    if len(streams) >= 1 and streams[0]['type'] == 'live':
-        access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.reciever.id)
-        access_token = [str(token) for token in access_token_resultset][0]
-        await payload.data.broadcaster.create_marker(token=access_token,
-                                                     description=event_string)
+    await bot.set_stream_marker(payload=payload, event_string=event_string)
+
+    # react to event
     if not payload.data.is_anonymous:
         # Get cheerer info
         channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
@@ -184,17 +182,18 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     # Check if sub is gifted
     if not payload.data.is_gift:
         """ event triggered when someone subscribes the channel """
+        event_string = ""
+        if payload.data.is_anonymous:
+            event_string = f"Received subscription event from anonymous, " \
+                           f"with tier {payload.data.tier / 1000} sub."
+        else:
+            event_string = f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], " \
+                           f"with tier {payload.data.tier / 1000} sub."
+        print(event_string)
 
-        print(f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-              f"with tier {payload.data.tier / 1000} sub.")
         # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-            access_token = [str(token) for token in access_token_resultset][0]
-            await payload.data.broadcaster.create_marker(token=access_token,
-                                                         description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-                                                                     f"with tier {payload.data.tier / 1000} sub.")
+        await bot.set_stream_marker(payload=payload, event_string=event_string)
+
         # Get subscriber info
         channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
         # Acknowledge raid and reply with a channel bio
@@ -216,16 +215,18 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
 
     else:
         """ event triggered when someone gifts a sub to someone in the channel """
-        print(f"Received gift subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-              f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]")
+        event_string = ""
+        if payload.data.is_anonymous:
+            event_string = f"Received gift subscription event from anonymous, " \
+                           f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
+        else:
+            event_string = f"Received gift subscription event from {payload.data.user.name} [{payload.data.user.id}], " \
+                           f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
+        print(event_string)
+
         # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = await bot._http.get_streams(user_ids=[payload.data.broadcaster.id])
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-            access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
-            access_token = [str(token) for token in access_token_resultset][0]
-            await payload.data.broadcaster.create_marker(token=access_token,
-                                                         description=f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
-                                                                     f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]")
+        await bot.set_stream_marker(payload=payload, event_string=event_string)
+
         # Get subscriber info
         channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
         # Acknowledge raid and reply with a channel bio
@@ -241,22 +242,20 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
 @bot.event()
 async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone raids the channel """
-    print(f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-          f"with {payload.data.viewer_count} viewers!")
+    event_string = f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], " \
+                   f"with {payload.data.viewer_count} viewers"
+    print(event_string)
+
     # Log the raid occurence
     db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
                         receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
                         viewer_count=payload.data.viewer_count)
     # Respond to the raid
     broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, bot.channel_broadcasters))[0]
+
     # create stream marker (Stream markers cannot be created when the channel is offline)
-    streams = await bot._http.get_streams(user_ids=[payload.data.reciever.id])
-    if len(streams) >= 1 and streams[0]['type'] == 'live':
-        access_token_resultset = bot.database.fetch_user_access_token_from_id(payload.data.reciever.id)
-        access_token = [str(token) for token in access_token_resultset][0]
-        await broadcaster.create_marker(token=access_token,
-                                        description=f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
-                                                    f"with {payload.data.viewer_count} viewers!")
+    await bot.set_stream_marker(payload=payload, event_string=event_string)
+
     # Get raider info
     channel = await bot._http.get_channels(broadcaster_id=payload.data.raider.id)
     clips = await bot._http.get_clips(broadcaster_id=payload.data.raider.id)
