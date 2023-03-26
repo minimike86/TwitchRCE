@@ -36,6 +36,12 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `Kill My Shell` | 6666  | Immediately closes the last [qterminal](https://github.com/lxqt/qterminal) window that was opened without warning! Confirms success in a chat announcement.                                                             | Streaming in `Science & Technology` <br/>_OR_ `Software and Game Development` category.          |
 | `VIP`           | 80085 | If you have spare VIP slots it will automatically grant the redeemer the VIP role. VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode! Confirms success in a chat announcement. | Broadcaster has spare VIP slots <br/>_AND_ Redeemer does not have a `Moderator` or a `VIP` role. |
 
+## Publish Subscriptions | [TwitchIO PubSub Docs](https://twitchio.dev/en/latest/exts/pubsub.html)
+| Topic                                                | Response                                                                                                                             |
+|------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| *pubsub.channel_points(user_token)[user_channel_id]* | This topic listens for channel point redemptions on the given channel. This topic dispatches the pubsub_channel_points client event. |
+
+
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
 | Event Type                          | Response                                              |
 |-------------------------------------|-------------------------------------------------------|

@@ -407,5 +407,6 @@ class Bot(commands.Bot):
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
             # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
+            # TODO: Handle IndexError: list index out of range if channel name is not in self.channel_broadcasters
             from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
             await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
