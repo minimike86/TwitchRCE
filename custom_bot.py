@@ -18,7 +18,6 @@ class Bot(commands.Bot):
         super().__init__(token=user_token,
                          prefix='!',
                          initial_channels=initial_channels)
-        self.initial_channels = initial_channels
         self.database = database
         self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,
@@ -46,8 +45,11 @@ class Bot(commands.Bot):
 
         user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=self.user_logins)
         broadcasters: List[PartialUser] = []
-        for user in user_data:
-            broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
+        try:
+            for user in user_data:
+                broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
+        except twitchio.errors.Unauthorized as error:
+            print(f"Unauthorized: {error}")
         self.channel_broadcasters = broadcasters
 
     async def __validate__(self, user_token: str):
@@ -70,13 +72,13 @@ class Bot(commands.Bot):
 
         await self.delete_event_subscriptions()
 
-        broadcasters: List[User] = await self.fetch_users(names=self.initial_channels)
+        broadcasters: List[User] = await self.fetch_users(names=[settings.BOT_JOIN_CHANNEL])
         for broadcaster in broadcasters:
             print(f'Subscribing to events for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_follows event"""
-                await self.esclient.subscribe_channel_follows(broadcaster=broadcaster.id)
+                await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_follows event for {broadcaster.name}\'s channel.')
 
@@ -153,13 +155,19 @@ class Bot(commands.Bot):
         print(f"deleted all event subs.")
 
     async def event_ready(self):
-        """ Bot is logged into IRC and ready to do its thing. """
-        print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
-        logins = [channel.name for channel in self.connected_channels]
-        user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
-        for user in user_data:
-            user = await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch()
-            await user.channel.send(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
+        if len(self.connected_channels) == 0:
+            """ Bot failed to join channel. """
+            await self.join_channels(channels=[settings.BOT_JOIN_CHANNEL])
+
+        if len(self.connected_channels) >= 1:
+            """ Bot is logged into IRC and ready to do its thing. """
+            print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
+            logins = [channel.name for channel in self.connected_channels]
+            # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
+            user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
+            for user in user_data:
+                user = await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch()
+                await user.channel.send(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
@@ -293,20 +301,11 @@ class Bot(commands.Bot):
                                            to_broadcaster_id=channel['broadcaster_id'],
                                            moderator_id=broadcaster.id)
 
-    async def refresh_user_token(self, user: any):
-        twitch_api_auth_http = TwitchApiAuth()
-        auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
-        self.database.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
-                            auth_result['access_token'], auth_result['expires_in'],
-                            auth_result['refresh_token'], auth_result['scope'])
-        print(f"Updated access and refresh token for {user['broadcaster_login']}")
-        return auth_result
-
-    @commands.command()
-    async def reauth(self, ctx: commands.Context):
-        """ Try to refresh the bot user token """
-        await self.validate_token(settings.BOT_USERNAME)
-        await self.validate_token(ctx.channel.name)
+    # @commands.command()
+    # async def reauth(self, ctx: commands.Context):
+    #     """ Try to refresh the bot user token """
+    #     await self.validate_token(settings.BOT_USERNAME)
+    #     await self.validate_token(ctx.channel.name)
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):

@@ -112,3 +112,28 @@ class TwitchApiAuth:
         if status == 200:
             print(f"Token refreshed: {json.dumps(data)}.")
             return data
+
+    async def validate_token(self, access_token: str) -> bool:
+        """
+        https://dev.twitch.tv/docs/authentication/validate-tokens/
+        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens hourly as required.
+        """
+        url = "https://id.twitch.tv/oauth2/validate"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": f"OAuth {access_token}"
+        }
+        params = {
+        }
+        request_body = {
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url, params=params, headers=headers, data=json.dumps(request_body)) as resp:
+                status = resp.status
+                data = await resp.json()
+        if status == 401:
+            print(f"Invalid access token: {json.dumps(data)}.")
+            return False
+        if status == 200:
+            print(f"Valid access token: {json.dumps(data)}.")
+            return True

@@ -1,6 +1,6 @@
 import asyncio
+from typing import Optional
 
-from twitchio import errors
 from twitchio.ext import eventsub, pubsub
 
 from cogs.rce import RCECog
@@ -14,11 +14,42 @@ from ngrok import NgrokClient
 import settings
 
 
+print("Starting TwitchRCE!")
+
 # init db
 db = Database()
-print("Starting TwitchRCE!")
+
+# init asyncio
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+
+# init TwitchApiAuth
+twitch_api_auth_http = TwitchApiAuth()
+
+
+async def get_app_token() -> str:
+    """ Uses the bots client id and secret to generate a new application token via client credentials grant flow """
+    ccgf = await twitch_api_auth_http.client_credentials_grant_flow()
+    db.insert_app_data(ccgf['access_token'], ccgf['expires_in'], ccgf['token_type'])
+    print("Updated App Token!")
+    return ccgf['access_token']
+
+
+async def check_valid_token(user: any) -> bool:
+    is_valid_token = await twitch_api_auth_http.validate_token(access_token=user['access_token'])
+    if not is_valid_token:
+        access_token = await refresh_user_token(user=user)
+        is_valid_token = await twitch_api_auth_http.validate_token(access_token=access_token)
+    return is_valid_token
+
+
+async def refresh_user_token(user: any) -> str:
+    auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
+    db.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
+                        auth_result['access_token'], auth_result['expires_in'],
+                        auth_result['refresh_token'], auth_result['scope'])
+    print(f"Updated access and refresh token for {user['broadcaster_login']}")
+    return auth_result['access_token']
 
 # Start a ngrok client as all inbound event subscriptions need a public facing IP address and can handle https traffic.
 ngrok_client = NgrokClient(loop=loop)
@@ -28,50 +59,57 @@ async def ngrok_start() -> (str, str):
     return await ngrok_client.start()
 auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
 
-
-async def get_app_token() -> str:
-    """ Uses the bots client id and secret to generate a new application token via client credentials grant flow """
-    twitch_api_auth = TwitchApiAuth()
-    ccgf = await twitch_api_auth.client_credentials_grant_flow()
-    db.insert_app_data(ccgf['access_token'], ccgf['expires_in'], ccgf['token_type'])
-    print("Updated App Token!")
-    return ccgf['access_token']
-
+# fetch bot app token
 app_access_token_resultset = db.fetch_app_token()
 app_access_token = [row['access_token'] for row in app_access_token_resultset][0]
 if len(app_access_token_resultset) < 1:
     app_access_token = loop.run_until_complete(get_app_token())
 
-user_data = [row for row in db.fetch_user_from_login(settings.BOT_USERNAME)][0]
-user_access_token = user_data['access_token']
-user_refresh_token = user_data['refresh_token']
+# fetch bot user token (refresh it if needed)
+bot_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_USERNAME)][0]
+is_valid = loop.run_until_complete(check_valid_token(user=bot_user_resultset))
 
 # Create a bot from your twitch client credentials
+bot_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_USERNAME)][0]
+user_access_token = bot_user_resultset['access_token']
 bot = Bot(user_token=user_access_token,
           initial_channels=[settings.BOT_JOIN_CHANNEL],
           eventsub_public_url=eventsub_public_url,
           database=db)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
-bot._http.client_id = settings.CLIENT_ID
-bot._http.client_secret = settings.CLIENT_SECRET
-bot._http.app_token = app_access_token
-
-try:
-    """ Try to authenticate the bot with the stored bot user token """
-    loop.run_until_complete(bot.__validate__(user_token=user_access_token))
-except errors.AuthenticationError:
-    """ Try to refresh the bot user token """
-    user_access_token = bot.loop.run_until_complete(bot.refresh_user_token(user=user_data))['access_token']
-    loop.run_until_complete(bot.__validate__(user_token=user_access_token))
+# bot._http.client_id = settings.CLIENT_ID
+# bot._http.client_secret = settings.CLIENT_SECRET
+# bot._http.app_token = app_access_token
+# bot._http.nick = None
+# bot._connection.initial_channels = [settings.BOT_JOIN_CHANNEL]
+# bot._connection._token = user_access_token
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
 
-user_access_token_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
-bot.loop.run_until_complete(bot.__psclient_init__(user_token=user_access_token_resultset['access_token'],
-                                                  channel_id=int(user_access_token_resultset['broadcaster_id'])))  # start the pub subscription client
+bot_join_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
+bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_resultset['access_token'],
+                                                  channel_id=int(bot_join_user_resultset['broadcaster_id'])))  # start the pub subscription client
 
 bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
+
+
+@bot.event()
+async def event_error(error: Exception, data: Optional[str] = None):
+    print(f"======================================================================== \n"
+          f"Event Error: '{error}'! \n"
+          f"Event Data: '{data}'! \n"
+          f"=======================================================================")
+
+
+@bot.event()
+async def event_channel_join_failure(channel: str):
+    print(f"======================================================================== \n"
+          f"Event: Failed to join channel '{channel}'! \n"
+          f"========================================================================")
+    user_access_token_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
+    bot._connection._token = user_access_token_resultset['access_token']
+
 
 @bot.event()
 async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
@@ -83,7 +121,7 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
           f"========================================================================")
 
     # Check if reward can be redeemed at this time
-    if not event.reward.paused and event.reward.in_stock and event.reward.enabled:
+    if not event.reward.paused and event.reward.enabled:
 
         if event.reward.title == 'Kill My Shell':
             # noinspection PyTypeChecker
