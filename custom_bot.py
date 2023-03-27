@@ -40,6 +40,7 @@ class Bot(commands.Bot):
 
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
+        # TODO: Look into AttributeError: 'ChannelRaidData' object has no attribute 'broadcaster'
         streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
         if len(streams) >= 1 and streams[0]['type'] == 'live':
             access_token_resultset = None
@@ -313,21 +314,62 @@ class Bot(commands.Bot):
         """ invoke skynet """
         await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
 
-    # TODO: virustotal hash scanner
     @commands.command()
     async def virustotal(self, ctx: commands.Context):
-        # Request rate	4 lookups / min
-        # Daily quota	500 lookups / day
-        # Monthly quota	15.5 K lookups / month
-        """ type !virustotal <hash> to lookup a hash on virustotal """
-        """ type !virustotal <domain> to lookup a domain on virustotal """
-        param_hash_id = str(ctx.message.content).split(' ')[1]
+        """
+        VirusTotal API Limits:
+            Request rate	4 lookups / min
+            Daily quota	    500 lookups / day
+            Monthly quota	15.5 K lookups / month
+        """
+        param: str = str(ctx.message.content).split(' ')[1]
         vt = VirusTotalApiClient()
-        file_report = await vt.get_file_report(hash_id=param_hash_id)
-        await ctx.send(f'VirusTotal -> meaningful_name: {file_report.meaningful_name}, magic: {file_report.magic}, '
-                       f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, '
-                       f'first_seen_itw_date: {file_report.first_seen_itw_date}, last_analysis_stats["malicious"]: {file_report.last_analysis_stats["malicious"]}, '
-                       f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, times_submitted: {file_report.times_submitted}!')
+        if param == '-h' or param == '--h' or param == '-help' or param == '--help':
+            await ctx.send(f'Usage: !virustotal <hash>'
+                           f'This command checks a file hash against the VirusTotal database to determine if it is a known malicious file.'
+                           f'Arguments:'
+                           f'   <hash>  Required. The file hash to check against the VirusTotal database.'
+                           f'Examples:'
+                           f'   virustotal 83b79423cfea613fcb89c01f1717a852ea05e986aa3c3b1de17c314680b8d893'
+                           f'   virustotal 6c0e6e35b9c9d1a25f1c92fb90f8fe03'
+                           f'Options:'
+                           f'   -h, --help    Show this help message and exit.')
+
+        elif re.match(r'^(http(s)?(://)?)?(www\.)?([\w\d]{0,253})(\.)([\w\d]{2,})([/\w\d]*)$', param):
+            """ type !virustotal <domain> to lookup a domain on virustotal """
+            try:
+                domain_report = await vt.get_url_report(url=param)
+                report_output: list[str] = ['VirusTotal -> ']
+                report_output.append(f'url: {domain_report.url}, ') if hasattr(domain_report, 'url') else None
+                report_output.append(f'last_final_url: {domain_report.last_final_url}, ') if hasattr(domain_report, 'last_final_url') else None
+                report_output.append(f'title: {domain_report.title}, ') if hasattr(domain_report, 'title') else None
+                report_output.append(f'first_submission_date: {domain_report.first_submission_date}, ') if hasattr(domain_report, 'first_submission_date') else None
+                report_output.append(f'last_analysis_stats["harmless"]: {domain_report.last_analysis_stats["harmless"]}, ') if hasattr(domain_report, 'last_analysis_stats') else None
+                report_output.append(f'last_analysis_stats["malicious"]: {domain_report.last_analysis_stats["malicious"]}, ') if hasattr(domain_report, 'last_analysis_stats') else None
+                report_output.append(f'total_votes["harmless"]: {domain_report.total_votes["harmless"]}, ') if hasattr(domain_report, 'total_votes') else None
+                report_output.append(f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report, 'total_votes') else None
+                report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report, 'times_submitted') else None
+                await ctx.send(''.join(report_output))
+            except Exception as shitfuckedupyo:
+                await ctx.send(f'There\'s no VirusTotal report for this URL! {shitfuckedupyo}')
+
+        else:
+            """ type !virustotal <hash> to lookup a hash on virustotal """
+            try:
+                file_report = await vt.get_file_report(hash_id=param)
+                report_output: list[str] = ['VirusTotal -> ']
+                report_output.append(f'meaningful_name: {file_report.meaningful_name}, ') if hasattr(file_report, 'meaningful_name') else None
+                report_output.append(f'magic: {file_report.magic}, ') if hasattr(file_report, 'magic') else None
+                report_output.append(f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, ') if hasattr(file_report, 'popular_threat_classification') else None
+                report_output.append(f'first_seen_itw_date: {file_report.first_seen_itw_date}, ') if hasattr(file_report, 'first_seen_itw_date') else None
+                report_output.append(f'last_analysis_stats["harmless"]: {file_report.last_analysis_stats["harmless"]}, ') if hasattr(file_report, 'last_analysis_stats') else None
+                report_output.append(f'last_analysis_stats["malicious"]: {file_report.last_analysis_stats["malicious"]}, ') if hasattr(file_report, 'last_analysis_stats') else None
+                report_output.append(f'total_votes["harmless"]: {file_report.total_votes["harmless"]}, ') if hasattr(file_report, 'total_votes') else None
+                report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(file_report, 'total_votes') else None
+                report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report, 'times_submitted') else None
+                await ctx.send(''.join(report_output))
+            except Exception as shitfuckedupyo:
+                await ctx.send(f'There\'s no VirusTotal report for this hash! {shitfuckedupyo}')
 
     # TODO: add chatgpt commands https://github.com/openai/openai-python
     @commands.command()

@@ -16,8 +16,9 @@ class VirusTotalApiClient:
         file_report = await self.client.get_object_async(path=f"/files/{hash_id}")
         return file_report
 
-    async def get_url_report(self, url_id: str):
+    async def get_url_report(self, url: str):
         """ https://virustotal.github.io/vt-py/quickstart.html#get-information-about-an-url
         https://developers.virustotal.com/reference/domain-info """
+        url_id = vt.url_id(url)
         url_report = await self.client.get_object_async(path=f"/urls/{url_id}")
         return url_report
