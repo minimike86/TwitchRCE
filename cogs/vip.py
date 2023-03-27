@@ -17,9 +17,9 @@ class VIPCog(commands.Cog):
 
     async def add_channel_vip(self, channel_id: int, author_id: str, author_login: str, event: pubsub.PubSubChannelPointsMessage):
         broadcaster = await self.bot._http.get_users(ids=[channel_id], logins=[])
-        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(broadcaster[0]['id'])
+        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token(broadcaster_id=broadcaster[0]['id'])
         broadcaster_access_token: str = broadcaster_access_token_resultset['access_token']
-        mod_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
+        mod_access_token_resultset = self.bot.database.fetch_user_access_token(broadcaster_id=self.bot.user_id)
         mod_access_token: str = mod_access_token_resultset['access_token']
 
         # Get list of channel mods

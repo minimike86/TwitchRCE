@@ -34,7 +34,7 @@ class Bot(commands.Bot):
 
     async def update_bot_http_token(self):
         """ updates the bots http client token """
-        bot_access_token_resultset = self.database.fetch_user_access_token_from_login(broadcaster_login=settings.BOT_USERNAME)
+        bot_access_token_resultset = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
         self._http.token = bot_access_token_resultset['access_token']
 
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
@@ -43,9 +43,9 @@ class Bot(commands.Bot):
         if len(streams) >= 1 and streams[0]['type'] == 'live':
             access_token_resultset = None
             if hasattr(payload.data, 'reciever'):
-                access_token_resultset = self.database.fetch_user_access_token_from_id(payload.data.reciever.id)
+                access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
             else:
-                access_token_resultset = self.database.fetch_user_access_token_from_id(payload.data.broadcaster.id)
+                access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.broadcaster.id)
             access_token = [str(token) for token in access_token_resultset][0]
             await payload.data.broadcaster.create_marker(token=access_token,
                                                          description=event_string)
@@ -199,7 +199,7 @@ class Bot(commands.Bot):
         """
         test a user token and if invalid prompt user to visit a url to generate a new token
         """
-        user_resultset = self.database.fetch_user_from_login(login)
+        user_resultset = self.database.fetch_user(broadcaster_login=login)
         user_data = [row for row in user_resultset][0]
         try:
             auth_validate = await self._http.validate(token=user_data['access_token'])
@@ -256,7 +256,7 @@ class Bot(commands.Bot):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
         if int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
-            user_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
+            user_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
                                            cost=6666,
@@ -266,7 +266,7 @@ class Bot(commands.Bot):
 
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
-        user_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        user_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
         vips = await self._http.get_channel_vips(token=user_token_resultset['access_token'],
                                                  broadcaster_id=broadcaster.id,
                                                  first=100)
@@ -282,7 +282,7 @@ class Bot(commands.Bot):
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
-        user_access_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        user_access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
         rewards = await self._http.get_rewards(broadcaster_id=broadcaster.id,
                                                only_manageable=True,
                                                token=user_access_token_resultset['access_token'])
@@ -300,7 +300,7 @@ class Bot(commands.Bot):
         message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
         if not channel['game_name'] == '':
             message += f" They were last playing \'{channel['game_name']}\'."
-        user_access_token_resultset = self.database.fetch_user_access_token_from_id(broadcaster.id)
+        user_access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
         await self._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
                                                 broadcaster_id=broadcaster.id,
                                                 message=message,
@@ -317,15 +317,13 @@ class Bot(commands.Bot):
                                            to_broadcaster_id=channel['broadcaster_id'],
                                            moderator_id=broadcaster.id)
 
-    # @commands.command()
-    # async def reauth(self, ctx: commands.Context):
-    #     """ Try to refresh the bot user token """
-    #     await self.validate_token(settings.BOT_USERNAME)
-    #     await self.validate_token(ctx.channel.name)
+    """
+    BOT COMMANDS BELOW VVVVVVVV
+    """
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
-        user_resultset = self.database.fetch_user_from_login(ctx.channel.name)
+        user_resultset = self.database.fetch_user(broadcaster_login=ctx.channel.name)
         subs = await self._http.get_channel_subscriptions(token=user_resultset[0]['access_token'],
                                                           broadcaster_id=user_resultset[0]['broadcaster_id'])
         self.database.update_all_subs_inactive()
@@ -372,7 +370,6 @@ class Bot(commands.Bot):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
 
-    # TODO: add lurk command
     @commands.command()
     async def lurk(self, ctx: commands.Context):
         """ type !lurk to let the streamer know you're lurking """
@@ -383,7 +380,7 @@ class Bot(commands.Bot):
         """ type !raids @username to print out how many raids you've received from the user """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
         if len(param_username) >= 1:
-            raider_login_resultset: sqlite3.Row = self.database.fetch_raids_from_login(raider_login=param_username)
+            raider_login_resultset: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(), receiver_login=ctx.channel.name)
             await ctx.send(f"{param_username} has raided the channel {len(raider_login_resultset)} times!")
 
     @commands.command()

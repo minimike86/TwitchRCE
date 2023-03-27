@@ -66,11 +66,11 @@ if len(app_access_token_resultset) < 1:
     app_access_token = loop.run_until_complete(get_app_token())
 
 # fetch bot user token (refresh it if needed)
-bot_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_USERNAME)][0]
+bot_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
 is_valid = loop.run_until_complete(check_valid_token(user=bot_user_resultset))
 
 # Create a bot from your twitch client credentials
-bot_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_USERNAME)][0]
+bot_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
 user_access_token = bot_user_resultset['access_token']
 bot = Bot(user_token=user_access_token,
           initial_channels=[settings.BOT_JOIN_CHANNEL],
@@ -81,7 +81,7 @@ bot.from_client_credentials(client_id=settings.CLIENT_ID,
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
 
-bot_join_user_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
+bot_join_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
 bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_resultset['access_token'],
                                                   channel_id=int(bot_join_user_resultset['broadcaster_id'])))  # start the pub subscription client
 
@@ -101,8 +101,6 @@ async def event_channel_join_failure(channel: str):
     print(f"======================================================================== \n"
           f"Event: Failed to join channel '{channel}'! \n"
           f"========================================================================")
-    user_access_token_resultset = [row for row in db.fetch_user_from_login(settings.BOT_JOIN_CHANNEL)][0]
-    bot._connection._token = user_access_token_resultset['access_token']
 
 
 @bot.event()
@@ -116,6 +114,7 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
 
     # Check if reward can be redeemed at this time
     if not event.reward.paused and event.reward.enabled:
+        """ We have to check redemption names as id's are randomly allocated when redemption is added """
 
         if event.reward.title == 'Kill My Shell':
             # noinspection PyTypeChecker
@@ -140,7 +139,7 @@ async def event_eventsub_notification_followV2(payload: eventsub.NotificationEve
 async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone cheers in the channel """
     event_string = ""
-    if payload.data.is_anonymous:
+    if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
         event_string = f"Received cheer event from anonymous, " \
                        f"cheered {payload.data.bits} bits, " \
                        f"message '{payload.data.message}'."
@@ -154,7 +153,7 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
     await bot.set_stream_marker(payload=payload, event_string=event_string)
 
     # react to event
-    if not payload.data.is_anonymous:
+    if hasattr(payload.data, 'is_anonymous') and not payload.data.is_anonymous:
         # Get cheerer info
         channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
         clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
@@ -177,7 +176,7 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     if not payload.data.is_gift:
         """ event triggered when someone subscribes the channel """
         event_string = ""
-        if payload.data.is_anonymous:
+        if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
             event_string = f"Received subscription event from anonymous, " \
                            f"with tier {payload.data.tier / 1000} sub."
         else:
@@ -210,7 +209,7 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     else:
         """ event triggered when someone gifts a sub to someone in the channel """
         event_string = ""
-        if payload.data.is_anonymous:
+        if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
             event_string = f"Received gift subscription event from anonymous, " \
                            f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
         else:

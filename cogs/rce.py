@@ -31,7 +31,7 @@ class RCECog(commands.Cog):
     async def exec(self, ctx: commands.Context):
         # get channel broadcaster
         broadcaster = await self.bot._http.get_users(ids=[], logins=[ctx.channel.name])
-        user_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
+        user_access_token_resultset = self.bot.database.fetch_user_access_token(broadcaster_id=self.bot.user_id)
 
         if ctx.message.content == "!exec --help":
             await ctx.send("""exec: !exec [whatever /bin/bash commands you want to mess with the streamer]: 
@@ -138,9 +138,9 @@ class RCECog(commands.Cog):
     async def killmyshell(self, broadcaster_id: int, author_login: str, event: pubsub.PubSubChannelPointsMessage):
         # get channel broadcaster
         broadcaster = await self.bot._http.get_users(ids=[str(broadcaster_id)], logins=[])
-        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(broadcaster[0]['id'])
+        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token(broadcaster_id=broadcaster[0]['id'])
         broadcaster_access_token = broadcaster_access_token_resultset['access_token']
-        mod_access_token_resultset = self.bot.database.fetch_user_access_token_from_id(self.bot.user_id)
+        mod_access_token_resultset = self.bot.database.fetch_user_access_token(broadcaster_id=self.bot.user_id)
         mod_access_token = mod_access_token_resultset['access_token']
 
         cmd1 = "echo $(xwininfo -tree -root | grep qterminal | head -n 1)"
