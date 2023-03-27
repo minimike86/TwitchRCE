@@ -29,6 +29,8 @@ class Bot(commands.Bot):
         self.add_cog(RCECog(self))
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
+        from cogs.user_cog import UserCog
+        self.add_cog(UserCog(self))
 
     async def update_bot_http_token(self):
         """ updates the bots http client token """
@@ -342,15 +344,6 @@ class Bot(commands.Bot):
     async def kill_everyone(self, ctx: commands.Context):
         """ invoke skynet """
         await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
-
-    # TODO: add sound extensions commands https://twitchio.dev/en/latest/exts/sounds.html
-    # MAKE AS A COG!!!
-    @commands.command()
-    async def ohlook(self, ctx: commands.Context):
-        """ type !ohlook """
-        if int(ctx.author.id) == 601591745 or int(ctx.author.id) == 125444292:
-            await ctx.send(f'Oh look, it\'s the bitch!')
-            await ctx.send(f'!so @stairsthetrashman')
 
     # TODO: virustotal hash scanner
     @commands.command()
