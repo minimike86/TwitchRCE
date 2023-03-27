@@ -63,15 +63,16 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 ### Environment Variables
 * [Create an `.env` file](https://dev.to/jakewitcher/using-env-files-for-environment-variables-in-python-applications-55a1) with your TWITCH API tokens and your channel name to use this script:
 
-| env key            | type   | env value                                                          |
-|--------------------|--------|--------------------------------------------------------------------|
-| CLIENT_ID=         | string | *[From developer application](https://dev.twitch.tv/console/apps)* |
-| CLIENT_SECRET=     | string | *[From developer application](https://dev.twitch.tv/console/apps)* |
-| AUTH_URI_PORT=     | int    | 3000                                                               |
-| EVENTSUB_URI_PORT= | int    | 8080                                                               |
-| BOT_USERNAME=      | string | msec_bot                                                           |
-| BOT_JOIN_CHANNEL=  | string | msec                                                               |
-| MAX_VIP_SLOTS=     | int    | 20                                                                 |
+| env key              | type   | env value                                                                                  |
+|----------------------|--------|--------------------------------------------------------------------------------------------|
+| CLIENT_ID=           | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
+| CLIENT_SECRET=       | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
+| VIRUS_TOTAL_API_KEY= | string | *[From VirusTotal Community](https://developers.virustotal.com/reference/getting-started)* |
+| AUTH_URI_PORT=       | int    | 3000                                                                                       |
+| EVENTSUB_URI_PORT=   | int    | 8080                                                                                       |
+| BOT_USERNAME=        | string | msec_bot                                                                                   |
+| BOT_JOIN_CHANNEL=    | string | msec                                                                                       |
+| MAX_VIP_SLOTS=       | int    | 20                                                                                         |
 
 ### Ngrok Config | [Ngrok Tunnel Definition Docs](https://ngrok.com/docs/ngrok-agent/config#tunnel-definitions)
 * Add a `auth` and `eventsub` tunnel configuration(s) to your `ngrok.yml` file

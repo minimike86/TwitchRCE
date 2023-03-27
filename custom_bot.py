@@ -348,7 +348,11 @@ class Bot(commands.Bot):
     # TODO: virustotal hash scanner
     @commands.command()
     async def virustotal(self, ctx: commands.Context):
+        # Request rate	4 lookups / min
+        # Daily quota	500 lookups / day
+        # Monthly quota	15.5 K lookups / month
         """ type !virustotal <hash> to lookup a hash on virustotal """
+        """ type !virustotal <domain> to lookup a domain on virustotal """
         await ctx.send(f'Hello {ctx.author.name}!')
 
     # TODO: add chatgpt commands https://github.com/openai/openai-python
