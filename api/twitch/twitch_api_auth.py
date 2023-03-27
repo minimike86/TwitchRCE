@@ -1,9 +1,8 @@
 import asyncio
+import aiohttp
 import json
-from urllib.parse import urlencode
 
 import settings
-import aiohttp
 
 
 class TwitchApiAuth:

@@ -8,9 +8,9 @@ from cogs.vip import VIPCog
 from custom_bot import Bot
 from db.database import Database
 
-from twitch_api_auth import TwitchApiAuth
+from api.twitch.twitch_api_auth import TwitchApiAuth
 
-from ngrok import NgrokClient
+from ngrok.ngrok import NgrokClient
 import settings
 
 

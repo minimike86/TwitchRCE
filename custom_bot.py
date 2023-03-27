@@ -8,8 +8,9 @@ from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub
 
 import settings
+from api.virustotal.virus_total_api import VirusTotalApiClient
 from db.database import Database
-from twitch_api_auth import TwitchApiAuth
+from api.twitch.twitch_api_auth import TwitchApiAuth
 
 
 class Bot(commands.Bot):
@@ -221,37 +222,6 @@ class Bot(commands.Bot):
             except errors.AuthenticationError:
                 print(f"The refreshed user token for {login} is invalid.")
 
-            # TODO: if tokens are missing use this code to obtain new tokens
-            # # Get UserID via Authorization code grant flow
-            # # https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow
-            # scope = "analytics:read:extensions analytics:read:games bits:read channel:edit:commercial channel:manage:broadcast channel:read:charity channel:manage:extensions channel:manage:moderators channel:manage:polls channel:manage:predictions channel:manage:raids channel:manage:redemptions channel:manage:schedule channel:manage:videos channel:read:editors channel:read:goals channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:stream_key channel:read:subscriptions channel:read:vips channel:manage:vips clips:edit moderation:read moderator:manage:announcements moderator:manage:automod moderator:read:automod_settings moderator:manage:automod_settings moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms moderator:manage:chat_messages moderator:read:chat_settings moderator:manage:chat_settings moderator:read:chatters moderator:read:followers moderator:read:shield_mode moderator:manage:shield_mode moderator:read:shoutouts moderator:manage:shoutouts user:edit user:edit:follows user:manage:blocked_users user:read:blocked_users user:read:broadcast user:manage:chat_color user:read:email user:read:follows user:read:subscriptions user:manage:whispers channel:moderate chat:edit chat:read whispers:read whispers:edit"
-            # authorization_url = f"https://id.twitch.tv/oauth2/authorize?client_id={settings.CLIENT_ID}" \
-            #                     f"&force_verify=true" \
-            #                     f"&redirect_uri=http://localhost:3000/auth" \
-            #                     f"&response_type=code" \
-            #                     f"&scope={scope.replace(' ', '%20')}" \
-            #                     f"&state={secrets.token_hex(16)}"
-            # print("Launching auth site:", authorization_url)
-            #
-            # logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-            # with ThreadingTCPServerWithStop(("0.0.0.0", 3000), CodeHandler) as tcpserver:
-            #     logger.info(f"Serving on {tcpserver.server_address}...")
-            #     tcpserver.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            #     if tcpserver.stop is not True:
-            #         tcpserver.stop = False
-            #         tcpserver.serve_forever(poll_interval=0.1)
-            #     logger.info('Server stopped')
-            #
-            # twitch_api_auth = TwitchApiAuth()
-            # auth_result = await twitch_api_auth.obtain_access_token(code=tcpserver.code,
-            #                                                         redirect_uri='http://localhost:3000/auth')
-            # http_client.token = auth_result['access_token']
-            # users = await http_client.get_users(ids=[], logins=[], token=auth_result['access_token'])
-            # db.insert_user_data(broadcaster_id=users[0]['id'], broadcaster_login=users[0]['login'],
-            #                     email=users[0]['email'], access_token=auth_result['access_token'],
-            #                     expires_in=auth_result['expires_in'], refresh_token=auth_result['refresh_token'],
-            #                     scope=auth_result['scope'])
-
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
@@ -351,7 +321,13 @@ class Bot(commands.Bot):
         # Monthly quota	15.5 K lookups / month
         """ type !virustotal <hash> to lookup a hash on virustotal """
         """ type !virustotal <domain> to lookup a domain on virustotal """
-        await ctx.send(f'Hello {ctx.author.name}!')
+        param_hash_id = str(ctx.message.content).split(' ')[1]
+        vt = VirusTotalApiClient()
+        file_report = await vt.get_file_report(hash_id=param_hash_id)
+        await ctx.send(f'VirusTotal -> meaningful_name: {file_report.meaningful_name}, magic: {file_report.magic}, '
+                       f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, '
+                       f'first_seen_itw_date: {file_report.first_seen_itw_date}, last_analysis_stats["malicious"]: {file_report.last_analysis_stats["malicious"]}, '
+                       f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, times_submitted: {file_report.times_submitted}!')
 
     # TODO: add chatgpt commands https://github.com/openai/openai-python
     @commands.command()
