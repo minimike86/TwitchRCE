@@ -40,17 +40,29 @@ class Bot(commands.Bot):
 
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
-        # TODO: Look into AttributeError: 'ChannelRaidData' object has no attribute 'broadcaster'
-        streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
+        streams = None
+        if hasattr(payload.data, 'reciever'):
+            streams = await self._http.get_streams(user_ids=[payload.data.reciever.id])
+        else:
+            streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
+
         if len(streams) >= 1 and streams[0]['type'] == 'live':
+
+            # Obtain broadcaster access token
             access_token_resultset = None
             if hasattr(payload.data, 'reciever'):
                 access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
             else:
                 access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.broadcaster.id)
             access_token = [str(token) for token in access_token_resultset][0]
-            await payload.data.broadcaster.create_marker(token=access_token,
-                                                         description=event_string)
+
+            # Create the marker
+            if hasattr(payload.data, 'reciever'):
+                await payload.data.reciever.create_marker(token=access_token,
+                                                          description=event_string)
+            else:
+                await payload.data.broadcaster.create_marker(token=access_token,
+                                                             description=event_string)
 
     async def __channel_broadcasters_init__(self):
         """ get broadcasters objects for every user_login, you need these to send messages """
@@ -181,7 +193,6 @@ class Bot(commands.Bot):
             """ Bot is logged into IRC and ready to do its thing. """
             print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
             logins = [channel.name for channel in self.connected_channels]
-            # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
             user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
             for user in user_data:
                 user = await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch()
@@ -199,7 +210,7 @@ class Bot(commands.Bot):
     # If invalid or missing then generate new tokens
     async def validate_token(self, login: str) -> any:
         """
-        test a user token and if invalid prompt user to visit a url to generate a new token
+        test a user token and if an invalid prompt ask the user to visit the url to generate a new token
         """
         user_resultset = self.database.fetch_user(broadcaster_login=login)
         user_data = [row for row in user_resultset][0]
@@ -283,14 +294,18 @@ class Bot(commands.Bot):
         if channel['broadcaster_id'] != str(broadcaster.id):
             streams = await self._http.get_streams(user_ids=[broadcaster.id])
             if len(streams) >= 1 and streams[0]['type'] == 'live':
-                # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
                 await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
                                            to_broadcaster_id=channel['broadcaster_id'],
                                            moderator_id=broadcaster.id)
 
     """
-    BOT COMMANDS BELOW VVVVVVVV
+    BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
     """
+
+    @commands.command(aliases=['hi'])
+    async def hello(self, ctx: commands.Context):
+        """ type !hello to say hello to author """
+        await ctx.send(f'Hello {ctx.author.name}!')
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
@@ -309,12 +324,7 @@ class Bot(commands.Bot):
             except sqlite3.IntegrityError:
                 print(f"Row already exists")
 
-    @commands.command()
-    async def kill_everyone(self, ctx: commands.Context):
-        """ invoke skynet """
-        await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
-
-    @commands.command()
+    @commands.command(aliases=['vt'])
     async def virustotal(self, ctx: commands.Context):
         """
         VirusTotal API Limits:
@@ -350,8 +360,8 @@ class Bot(commands.Bot):
                 report_output.append(f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report, 'total_votes') else None
                 report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
-            except Exception as shitfuckedupyo:
-                await ctx.send(f'There\'s no VirusTotal report for this URL! {shitfuckedupyo}')
+            except Exception as error:
+                await ctx.send(f'There\'s no VirusTotal report for this URL! {error}')
 
         else:
             """ type !virustotal <hash> to lookup a hash on virustotal """
@@ -368,8 +378,8 @@ class Bot(commands.Bot):
                 report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(file_report, 'total_votes') else None
                 report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
-            except Exception as shitfuckedupyo:
-                await ctx.send(f'There\'s no VirusTotal report for this hash! {shitfuckedupyo}')
+            except Exception as error:
+                await ctx.send(f'There\'s no VirusTotal report for this hash! {error}')
 
     # TODO: add chatgpt commands https://github.com/openai/openai-python
     @commands.command()
@@ -377,15 +387,15 @@ class Bot(commands.Bot):
         """ type !chatgpt <query> to ask chatgpt a question """
         await ctx.send(f'Hello {ctx.author.name}!')
 
+    @commands.command()
+    async def kill_everyone(self, ctx: commands.Context):
+        """ invoke skynet """
+        await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
+
     # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
     @commands.command()
     async def discord(self, ctx: commands.Context):
         """ type !discord to do something with discord """
-        await ctx.send(f'Hello {ctx.author.name}!')
-
-    @commands.command()
-    async def hello(self, ctx: commands.Context):
-        """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
 
     @commands.command()
@@ -419,7 +429,5 @@ class Bot(commands.Bot):
         if len(param_username) >= 1:
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
-            # TODO: Handle potential twitchio.errors.HTTPException: Failed to reach Twitch API
-            # TODO: Handle IndexError: list index out of range if channel name is not in self.channel_broadcasters
             from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
             await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')

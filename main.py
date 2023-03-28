@@ -28,11 +28,11 @@ twitch_api_auth_http = TwitchApiAuth()
 
 
 async def get_app_token() -> str:
-    """ Uses the bots client id and secret to generate a new application token via client credentials grant flow """
-    ccgf = await twitch_api_auth_http.client_credentials_grant_flow()
-    db.insert_app_data(ccgf['access_token'], ccgf['expires_in'], ccgf['token_type'])
+    """ Uses the bots' client id and secret to generate a new application token via client credentials grant flow """
+    client_creds_grant_flow = await twitch_api_auth_http.client_credentials_grant_flow()
+    db.insert_app_data(client_creds_grant_flow['access_token'], client_creds_grant_flow['expires_in'], client_creds_grant_flow['token_type'])
     print("Updated App Token!")
-    return ccgf['access_token']
+    return client_creds_grant_flow['access_token']
 
 
 async def check_valid_token(user: any) -> bool:
@@ -60,18 +60,18 @@ async def ngrok_start() -> (str, str):
 auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
 
 # fetch bot app token
-app_access_token_resultset = db.fetch_app_token()
-app_access_token = [row['access_token'] for row in app_access_token_resultset][0]
-if len(app_access_token_resultset) < 1:
+app_access_token_result_set = db.fetch_app_token()
+app_access_token = [row['access_token'] for row in app_access_token_result_set][0]
+if len(app_access_token_result_set) < 1:
     app_access_token = loop.run_until_complete(get_app_token())
 
 # fetch bot user token (refresh it if needed)
-bot_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
-is_valid = loop.run_until_complete(check_valid_token(user=bot_user_resultset))
+bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
+is_valid = loop.run_until_complete(check_valid_token(user=bot_user_result_set))
 
 # Create a bot from your twitch client credentials
-bot_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
-user_access_token = bot_user_resultset['access_token']
+bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
+user_access_token = bot_user_result_set['access_token']
 bot = Bot(user_token=user_access_token,
           initial_channels=[settings.BOT_JOIN_CHANNEL],
           eventsub_public_url=eventsub_public_url,
@@ -81,9 +81,9 @@ bot.from_client_credentials(client_id=settings.CLIENT_ID,
 
 bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
 
-bot_join_user_resultset = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
-bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_resultset['access_token'],
-                                                  channel_id=int(bot_join_user_resultset['broadcaster_id'])))  # start the pub subscription client
+bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
+bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
+                                                  channel_id=int(bot_join_user_result_set['broadcaster_id'])))  # start the pub subscription client
 
 bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
 
@@ -138,7 +138,6 @@ async def event_eventsub_notification_followV2(payload: eventsub.NotificationEve
 @bot.event()
 async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone cheers in the channel """
-    event_string = ""
     if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
         event_string = f"Received cheer event from anonymous, " \
                        f"cheered {payload.data.bits} bits, " \
@@ -175,7 +174,6 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
     # Check if sub is gifted
     if not payload.data.is_gift:
         """ event triggered when someone subscribes the channel """
-        event_string = ""
         if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
             event_string = f"Received subscription event from anonymous, " \
                            f"with tier {payload.data.tier / 1000} sub."
@@ -208,7 +206,6 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
 
     else:
         """ event triggered when someone gifts a sub to someone in the channel """
-        event_string = ""
         if hasattr(payload.data, 'is_anonymous') and payload.data.is_anonymous:
             event_string = f"Received gift subscription event from anonymous, " \
                            f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
@@ -231,7 +228,6 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
                 pass
 
 
-
 @bot.event()
 async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone raids the channel """
@@ -239,7 +235,7 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
                    f"with {payload.data.viewer_count} viewers"
     print(event_string)
 
-    # Log the raid occurence
+    # Log the raid occurrence
     db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
                         receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
                         viewer_count=payload.data.viewer_count)
