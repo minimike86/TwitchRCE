@@ -166,8 +166,8 @@ class Bot(commands.Bot):
             # logins = [channel.name for channel in self.connected_channels]
             # user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
             for channel in self.connected_channels:
-                print(f'Logged into channel(s): {channel.name}, as bot user: {self} (ID: {self.user_id})')
-                await channel.send(f'Logged into channel(s): {channel.name}, as User: {self.nick} (ID: {self.user_id})')
+                print(f'Logged into channel(s): {channel.name}, as bot user: {self.nick} (ID: {self.user_id})')
+                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
