@@ -7,10 +7,10 @@ import twitchio
 from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub
 
-import settings
 from api.virustotal.virus_total_api import VirusTotalApiClient
-from db.database import Database
 from api.twitch.twitch_api_auth import TwitchApiAuth
+from db.database import Database
+import settings
 
 
 class Bot(commands.Bot):
@@ -33,46 +33,24 @@ class Bot(commands.Bot):
         from cogs.user_cog import UserCog
         self.add_cog(UserCog(self))
 
+        self.death_count = 0
+
     async def update_bot_http_token(self):
         """ updates the bots http client token """
-        bot_access_token_resultset = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
-        self._http.token = bot_access_token_resultset['access_token']
-
-    async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
-        # create stream marker (Stream markers cannot be created when the channel is offline)
-        streams = None
-        if hasattr(payload.data, 'reciever'):
-            streams = await self._http.get_streams(user_ids=[payload.data.reciever.id])
-        else:
-            streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
-
-        if len(streams) >= 1 and streams[0]['type'] == 'live':
-
-            # Obtain broadcaster access token
-            access_token_resultset = None
-            if hasattr(payload.data, 'reciever'):
-                access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
-            else:
-                access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=payload.data.broadcaster.id)
-            access_token = [str(token) for token in access_token_resultset][0]
-
-            # Create the marker
-            if hasattr(payload.data, 'reciever'):
-                await payload.data.reciever.create_marker(token=access_token,
-                                                          description=event_string)
-            else:
-                await payload.data.broadcaster.create_marker(token=access_token,
-                                                             description=event_string)
+        bot_access_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
+        self._http.token = bot_access_token_result_set['access_token']
 
     async def __channel_broadcasters_init__(self):
         """ get broadcasters objects for every user_login, you need these to send messages """
-        user_login_resultset = self.database.fetch_all_user_logins()
-        self.user_logins = [row['broadcaster_login'] for row in user_login_resultset]
-        for login in self.user_logins:
+        user_login_result_set = self.database.fetch_all_user_logins()
+        user_logins: list[str] = [row['broadcaster_login'] for row in user_login_result_set]
+        user_logins.remove(settings.BOT_USERNAME)  # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
+        user_logins.insert(0, settings.BOT_USERNAME)  # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
+        for login in user_logins:
             print(f"Validating user token for {login}")
             await self.validate_token(login)
 
-        user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=self.user_logins)
+        user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=user_logins)
         broadcasters: List[PartialUser] = []
         try:
             for user in user_data:
@@ -107,7 +85,7 @@ class Bot(commands.Bot):
 
             try:
                 """ create new event subscription for channel_follows event"""
-                event = await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
+                await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
                 print(f'Subscribed to channel_follows event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_follows event for {broadcaster.name}\'s channel.')
@@ -142,35 +120,29 @@ class Bot(commands.Bot):
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_stream_end event for {broadcaster.name}\'s channel.')
 
-            # try:
-            #     """ create new event subscription for channel_points_redeemed event """
-            #     await self.esclient.subscribe_channel_points_reward_added(broadcaster=broadcaster.id, reward_id=)
-            # except twitchio.HTTPException:
-            #     print(f'Failed to subscribe to channel_points_redeemed event for {broadcaster.name}\'s channel.')
+    async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
+        # create stream marker (Stream markers cannot be created when the channel is offline)
+        if hasattr(payload.data, 'reciever'):
+            streams = await self._http.get_streams(user_ids=[payload.data.reciever.id])
+        else:
+            streams = await self._http.get_streams(user_ids=[payload.data.broadcaster.id])
 
-            # try:
-            #     """ create new event subscription for channel_points_reward_updated event """
-            #     await self.esclient.subscribe_channel_points_reward_updated(broadcaster=broadcaster.id, reward_id=)
-            # except twitchio.HTTPException:
-            #     print(f'Failed to subscribe to channel_points_reward_updated event for {broadcaster.name}\'s channel.')
+        if len(streams) >= 1 and streams[0]['type'] == 'live':
 
-            # try:
-            #     """ create new event subscription for channel_points_reward_removed event """
-            #     await self.esclient.subscribe_channel_points_reward_removed(broadcaster=broadcaster.id, reward_id=)
-            # except twitchio.HTTPException:
-            #     print(f'Failed to subscribe to channel_points_reward_removed event for {broadcaster.name}\'s channel.')
+            # Obtain broadcaster access token
+            if hasattr(payload.data, 'reciever'):
+                access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
+            else:
+                access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=payload.data.broadcaster.id)
+            access_token = [str(token) for token in access_token_result_set][0]
 
-            # try:
-            #     """ create new event subscription for channel_points_redeemed event """
-            #     await self.esclient.subscribe_channel_points_redeemed(broadcaster=broadcaster.id)
-            # except twitchio.HTTPException:
-            #     print(f'Failed to subscribe to channel_points_redeemed event for {broadcaster.name}\'s channel.')
-
-            # try:
-            #     """ create new event subscription for channel_points_redeem_updated event """
-            #     await self.esclient.subscribe_channel_points_redeem_updated(broadcaster=broadcaster.id)
-            # except twitchio.HTTPException:
-            #     print(f'Failed to subscribe to channel_points_redeem_updated event for {broadcaster.name}\'s channel.')
+            # Create the marker
+            if hasattr(payload.data, 'reciever'):
+                await payload.data.reciever.create_marker(token=access_token,
+                                                          description=event_string)
+            else:
+                await payload.data.broadcaster.create_marker(token=access_token,
+                                                             description=event_string)
 
     async def delete_event_subscriptions(self):
         """ before registering new event subscriptions remove old event subs """
@@ -191,12 +163,11 @@ class Bot(commands.Bot):
 
         if len(self.connected_channels) >= 1:
             """ Bot is logged into IRC and ready to do its thing. """
-            print(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
-            logins = [channel.name for channel in self.connected_channels]
-            user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
-            for user in user_data:
-                user = await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch()
-                await user.channel.send(f'Logged into channel(s): {self.connected_channels}, as User: {self.nick} (ID: {self.user_id})')
+            # logins = [channel.name for channel in self.connected_channels]
+            # user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
+            for channel in self.connected_channels:
+                print(f'Logged into channel(s): {channel.name}, as bot user: {self} (ID: {self.user_id})')
+                await channel.send(f'Logged into channel(s): {channel.name}, as User: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
@@ -306,6 +277,22 @@ class Bot(commands.Bot):
     async def hello(self, ctx: commands.Context):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
+
+    @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
+    async def infosec_streams(self, ctx: commands.Context):
+        """ type !streams to drop a link to infosecstreams.com """
+        await ctx.send(f'Check out this actively maintained activity-based and auto-sorted list of InfoSec streamers: https://infosecstreams.com')
+
+    @commands.command(aliases=['death', 'dead', 'ded', 'dc'])
+    async def death_counter(self, ctx: commands.Context):
+        """ type !death_counter, !ded or !dc appended with a plus (+) or minus (-) to increase/decrease the death counter """
+        if str(ctx.message.content).count('reset') >= 1:
+            self.death_count = 0
+        else:
+            plus_count = str(ctx.message.content).count('+')
+            minus_count = str(ctx.message.content).count('-')
+            self.death_count += plus_count - minus_count
+        await ctx.send(f'Deaths: {self.death_count}')
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
