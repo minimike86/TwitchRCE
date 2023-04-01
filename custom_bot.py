@@ -156,6 +156,17 @@ class Bot(commands.Bot):
             print(f"deleting event sub: {es_sub.id}")
         print(f"deleted all event subs.")
 
+    async def detect_bot_spam(self, message: twitchio.Message) -> bool:
+        if str(message.content).count('offer promotion of your channel') >= 1 \
+                or str(message.content).lower().count('viewers, followers, views, chat bots') >= 1 \
+                or str(message.content).lower().count('The price is lower than any competitor') >= 1 \
+                or str(message.content).lower().count('the quality is guaranteed to be the best') >= 1 \
+                or str(message.content).lower().count('incredibly flexible and convenient order management panel') >= 1 \
+                and str(message.content).lower().count('dogehype') >= 1:
+            print('Bot detected')
+            return True
+        return False
+
     async def event_ready(self):
         if len(self.connected_channels) == 0:
             """ Bot failed to join channel. """
@@ -174,8 +185,16 @@ class Bot(commands.Bot):
         if message.echo:
             return
         print('Bot: ', message.author.name, message.content)  # Print the contents of our message to console...
-        # TODO: if message content is a known follow bot account message then autoban the author
-        await self.handle_commands(message)  # we have commands overriding the default `event_message`
+
+        """ Messages that include common bot spammer phrases auto-ban. """
+        is_bot = await self.detect_bot_spam(message=message)
+        if is_bot:
+            user: PartialUser = await message.channel.user()
+            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=user.id)  # oauth user access token with the ``moderator:manage:banned_users`` scope
+            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id, user_id=message.author.id, reason='')
+        else:
+            """ Handle commands overriding the default `event_message`. """
+            await self.handle_commands(message)
 
     # check for any user logins and validate their access_tokens.
     # If invalid or missing then generate new tokens
@@ -183,8 +202,8 @@ class Bot(commands.Bot):
         """
         test a user token and if an invalid prompt ask the user to visit the url to generate a new token
         """
-        user_resultset = self.database.fetch_user(broadcaster_login=login)
-        user_data = [row for row in user_resultset][0]
+        user_result_set = self.database.fetch_user(broadcaster_login=login)
+        user_data = [row for row in user_result_set][0]
         try:
             auth_validate = await self._http.validate(token=user_data['access_token'])
             print(f"The user token for {login} is valid.")
@@ -209,18 +228,18 @@ class Bot(commands.Bot):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
         if int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
-            user_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
+            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
                                            cost=6666,
                                            prompt="Immediately closes the last terminal window that was opened without warning!",
                                            global_cooldown=5 * 60,
-                                           token=user_token_resultset['access_token'])
+                                           token=user_token_result_set['access_token'])
 
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
-        user_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        vips = await self._http.get_channel_vips(token=user_token_resultset['access_token'],
+        user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
+        vips = await self._http.get_channel_vips(token=user_token_result_set['access_token'],
                                                  broadcaster_id=broadcaster.id,
                                                  first=100)
         if len(vips) < settings.MAX_VIP_SLOTS:
@@ -230,22 +249,22 @@ class Bot(commands.Bot):
                                            prompt="VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode!",
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
-                                           token=user_token_resultset['access_token'])
+                                           token=user_token_result_set['access_token'])
 
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
-        user_access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
+        user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
         rewards = await self._http.get_rewards(broadcaster_id=broadcaster.id,
                                                only_manageable=True,
-                                               token=user_access_token_resultset['access_token'])
+                                               token=user_access_token_result_set['access_token'])
         print(f"Got rewards: [{json.dumps(rewards)}]")
         if rewards is not None:
             custom_reward_titles = ["Kill My Shell", "VIP"]
             for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
                 await self._http.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                       reward_id=reward["id"],
-                                                      token=user_access_token_resultset['access_token'])
+                                                      token=user_access_token_result_set['access_token'])
                 print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
@@ -253,8 +272,8 @@ class Bot(commands.Bot):
         message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
         if not channel['game_name'] == '':
             message += f" They were last playing \'{channel['game_name']}\'."
-        user_access_token_resultset = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        await self._http.post_chat_announcement(token=user_access_token_resultset['access_token'],
+        user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
+        await self._http.post_chat_announcement(token=user_access_token_result_set['access_token'],
                                                 broadcaster_id=broadcaster.id,
                                                 message=message,
                                                 moderator_id=broadcaster.id,
@@ -265,7 +284,7 @@ class Bot(commands.Bot):
         if channel['broadcaster_id'] != str(broadcaster.id):
             streams = await self._http.get_streams(user_ids=[broadcaster.id])
             if len(streams) >= 1 and streams[0]['type'] == 'live':
-                await broadcaster.shoutout(token=user_access_token_resultset['access_token'],
+                await broadcaster.shoutout(token=user_access_token_result_set['access_token'],
                                            to_broadcaster_id=channel['broadcaster_id'],
                                            moderator_id=broadcaster.id)
 
@@ -283,7 +302,7 @@ class Bot(commands.Bot):
         """ type !streams to drop a link to infosecstreams.com """
         await ctx.send(f'Check out this actively maintained activity-based and auto-sorted list of InfoSec streamers: https://infosecstreams.com')
 
-    @commands.command(aliases=['death', 'dead', 'ded', 'dc'])
+    @commands.command(aliases=['deaths', 'death', 'dead', 'died', 'ded', 'dc'])
     async def death_counter(self, ctx: commands.Context):
         """ type !death_counter, !ded or !dc appended with a plus (+) or minus (-) to increase/decrease the death counter """
         if str(ctx.message.content).count('reset') >= 1:
@@ -296,9 +315,9 @@ class Bot(commands.Bot):
 
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
-        user_resultset = self.database.fetch_user(broadcaster_login=ctx.channel.name)
-        subs = await self._http.get_channel_subscriptions(token=user_resultset[0]['access_token'],
-                                                          broadcaster_id=user_resultset[0]['broadcaster_id'])
+        user_result_set = self.database.fetch_user(broadcaster_login=ctx.channel.name)
+        subs = await self._http.get_channel_subscriptions(token=user_result_set[0]['access_token'],
+                                                          broadcaster_id=user_result_set[0]['broadcaster_id'])
         self.database.update_all_subs_inactive()
         for sub in subs:
             try:
@@ -395,8 +414,8 @@ class Bot(commands.Bot):
         """ type !raids @username to print out how many raids you've received from the user """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
         if len(param_username) >= 1:
-            raider_login_resultset: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(), receiver_login=ctx.channel.name)
-            await ctx.send(f"{param_username} has raided the channel {len(raider_login_resultset)} times!")
+            raider_login_result_set: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(), receiver_login=ctx.channel.name)
+            await ctx.send(f"{param_username} has raided the channel {len(raider_login_result_set)} times!")
 
     @commands.command()
     async def redemptions(self, ctx: commands.Context):
