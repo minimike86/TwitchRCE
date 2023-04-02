@@ -313,6 +313,14 @@ class Bot(commands.Bot):
             self.death_count += plus_count - minus_count
         await ctx.send(f'Deaths: {self.death_count}')
 
+    @commands.command(aliases=['mod'])
+    async def mod_bot(self, ctx: commands.Context):
+        user_token_result_set = self.database.fetch_user_access_token(broadcaster_login=ctx.channel.name)
+        from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+        to_moderator_user = await self._http.get_users(ids=[], logins=[settings.BOT_USERNAME])
+        await from_broadcaster.add_channel_moderator(token=user_token_result_set['access_token'],
+                                                     user_id=to_moderator_user[0]['id'])
+
     @commands.command()
     async def add_channel_subs(self, ctx: commands.Context):
         user_result_set = self.database.fetch_user(broadcaster_login=ctx.channel.name)

@@ -14,7 +14,7 @@ from db.database import Database
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-redirect_uri = 'https://006e-92-25-14-40.ngrok.io/auth'
+redirect_uri = 'https://2484-92-25-14-40.ngrok.io/auth'
 
 # https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow
 scope = "analytics:read:extensions analytics:read:games bits:read channel:edit:commercial channel:manage:broadcast channel:read:charity channel:manage:extensions channel:manage:moderators channel:manage:polls channel:manage:predictions channel:manage:raids channel:manage:redemptions channel:manage:schedule channel:manage:videos channel:read:editors channel:read:goals channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:stream_key channel:read:subscriptions channel:read:vips channel:manage:vips clips:edit moderation:read moderator:manage:announcements moderator:manage:automod moderator:read:automod_settings moderator:manage:automod_settings moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms moderator:manage:chat_messages moderator:read:chat_settings moderator:manage:chat_settings moderator:read:chatters moderator:read:followers moderator:read:shield_mode moderator:manage:shield_mode moderator:read:shoutouts moderator:manage:shoutouts user:edit user:edit:follows user:manage:blocked_users user:read:blocked_users user:read:broadcast user:manage:chat_color user:read:email user:read:follows user:read:subscriptions user:manage:whispers channel:moderate chat:edit chat:read whispers:read whispers:edit"
@@ -52,9 +52,15 @@ class CodeHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", "text/html")
             self.end_headers()
 
-            # Write the HTML content to the response body
-            html = f"<html><body><button style=\"background-color: #9146ff; color: #ffffff; font-weight: bold; padding: 8px;\" onclick=\"window.location.href='{authorization_url}'\">Authenticate with Twitch</button></body></html>"
-            self.wfile.write(bytes(html, "utf8"))
+            if "code" in self.path:
+                # Write the HTML content to the response body
+                html = f"<html><body>Success! :)</body></html>"
+                self.wfile.write(bytes(html, "utf8"))
+
+            else:
+                # Write the HTML content to the response body
+                html = f"<html><body><button style=\"background-color: #9146ff; color: #ffffff; font-weight: bold; padding: 8px;\" onclick=\"window.location.href='{authorization_url}'\">Authenticate with Twitch</button></body></html>"
+                self.wfile.write(bytes(html, "utf8"))
 
         else:
             self.send_response(code=200)
