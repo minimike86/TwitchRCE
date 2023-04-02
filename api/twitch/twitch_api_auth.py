@@ -1,4 +1,6 @@
 import asyncio
+from typing import Optional
+
 import aiohttp
 import json
 
@@ -136,3 +138,38 @@ class TwitchApiAuth:
         if status == 200:
             print(f"Valid access token: {json.dumps(data)}.")
             return True
+
+    async def get_users(self, access_token: str, ids=Optional[int], logins=Optional[str]):
+        """
+        https://dev.twitch.tv/docs/authentication/validate-tokens/
+        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens hourly as required.
+        """
+        url = "https://api.twitch.tv/helix/users"
+        headers = {
+            "Client-Id": settings.CLIENT_ID,
+            "Authorization": f"Bearer {access_token}"
+        }
+        params = {
+        }
+        request_body = {
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url, params=params, headers=headers, data=json.dumps(request_body)) as resp:
+                status = resp.status
+                data = await resp.json()
+        if status == 401:
+            """
+            The Authorization header is required and must contain an app access token or user access token.
+            The access token is not valid.
+            The ID specified in the Client-Id header does not match the client ID specified in the access token.
+            """
+            print(f"Unauthorized: {json.dumps(data)}.")
+        if status == 400:
+            """
+            The id or login query parameter is required unless the request uses a user access token.
+            The request exceeded the maximum allowed number of id and/or login query parameters.
+            """
+            print(f"Bad Request: {json.dumps(data)}.")
+        if status == 200:
+            print(f"Successfully retrieved the specified users’ information: {json.dumps(data)}.")
+            return data['data']

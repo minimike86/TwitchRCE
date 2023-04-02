@@ -191,7 +191,7 @@ class Bot(commands.Bot):
         if is_bot:
             user: PartialUser = await message.channel.user()
             user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=user.id)  # oauth user access token with the ``moderator:manage:banned_users`` scope
-            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id, user_id=message.author.id, reason='')
+            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id, user_id=message.author.id, reason='Banned for posting known bot spam/scam messages (eg: buy follows at dogehype)')
         else:
             """ Handle commands overriding the default `event_message`. """
             await self.handle_commands(message)
