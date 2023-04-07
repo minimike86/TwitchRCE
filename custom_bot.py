@@ -8,6 +8,7 @@ from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
+from Bard import Chatbot
 from api.twitch.twitch_api_auth import TwitchApiAuth
 from db.database import Database
 import settings
@@ -395,11 +396,14 @@ class Bot(commands.Bot):
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this hash! {error}')
 
-    # TODO: add chatgpt commands https://github.com/openai/openai-python
-    @commands.command()
-    async def chatgpt(self, ctx: commands.Context):
-        """ type !chatgpt <query> to ask chatgpt a question """
-        await ctx.send(f'Hello {ctx.author.name}!')
+    @commands.command(aliases=['chatgpt'])
+    async def bard(self, ctx: commands.Context):
+        """ type !bard <query> to ask bard a question """
+        param: str = str(ctx.message.content).split(maxsplit=1)[1]
+        chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+        response = chatbot.ask(f"In fewer than 450 characters, and in as few sentences as possible, "
+                               f"and without suggesting additional bullet points. Answer this query: '{param}'.")
+        await ctx.send(f"{response['content'][:450]}!")
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
