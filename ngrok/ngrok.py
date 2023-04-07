@@ -1,4 +1,4 @@
-from pyngrok import ngrok
+from pyngrok import ngrok, conf
 
 import settings
 
@@ -10,15 +10,24 @@ class NgrokClient:
 
     def __init__(self, loop):
         if self._tunnels is None:
+
+            conf.get_default().config_path = '/home/kali/.ngrok2/ngrok.yml'
+            conf.get_default().ngrok_path = '/usr/local/bin/ngrok'
+            conf.get_default().ngrok_version = 'v3'
+            conf.get_default().startup_timeout = 30
+            pyngrok_config = conf.get_default()
+
             try:
                 self._loop = loop
-                self._auth_tunnel = ngrok.connect(name='auth', bind_tls=True)
-                self._eventsub_tunnel = ngrok.connect(name='eventsub', bind_tls=True)
                 self._tunnels = ngrok.get_tunnels()
+                if len(self._tunnels) == 0:
+                    self._auth_tunnel = ngrok.connect(name='auth', pyngrok_config=pyngrok_config, bind_tls=True)
+                    self._eventsub_tunnel = ngrok.connect(name='eventsub', pyngrok_config=pyngrok_config, bind_tls=True)
+                    self._tunnels = ngrok.get_tunnels()
 
             except BaseException as e:
                 print("Failed to instantiate ngrok http_tunnel: ", e)
-                exit(0)
+                # exit(0)
 
     async def start(self) -> (str, str):
         self._tunnels = ngrok.get_tunnels()
