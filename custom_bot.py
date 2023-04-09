@@ -3,6 +3,8 @@ import re
 import sqlite3
 from typing import List
 
+from colorama import Fore, Back, Style
+
 import twitchio
 from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub
@@ -45,10 +47,11 @@ class Bot(commands.Bot):
         """ get broadcasters objects for every user_login, you need these to send messages """
         user_login_result_set = self.database.fetch_all_user_logins()
         user_logins: list[str] = [row['broadcaster_login'] for row in user_login_result_set]
-        user_logins.remove(settings.BOT_USERNAME)  # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
-        user_logins.insert(0, settings.BOT_USERNAME)  # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
+        # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
+        user_logins.remove(settings.BOT_USERNAME)
+        user_logins.insert(0, settings.BOT_USERNAME)
         for login in user_logins:
-            print(f"Validating user token for {login}")
+            print(f"{Fore.RED}Validating user token for {login}{Style.RESET_ALL}")
             await self.validate_token(login)
 
         user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=user_logins)
@@ -57,12 +60,12 @@ class Bot(commands.Bot):
             for user in user_data:
                 broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
         except twitchio.errors.Unauthorized as error:
-            print(f"Unauthorized: {error}")
+            print(f"{Fore.RED}Unauthorized: {error}{Style.RESET_ALL}")
         self.channel_broadcasters = broadcasters
 
     async def __validate__(self, user_token: str):
         validate_result = await self._http.validate(token=user_token)
-        print(f"Validation complete: {validate_result}")
+        print(f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}")
 
     async def __psclient_init__(self, user_token: str, channel_id: int) -> None:
         topics = [
@@ -74,7 +77,8 @@ class Bot(commands.Bot):
         """ start the esclient listening on specified port """
         try:
             self.loop.create_task(self.esclient.listen(port=settings.EVENTSUB_URI_PORT))
-            print(f"Running EventSub server on [port={settings.EVENTSUB_URI_PORT}]")
+            print(f"{Fore.RED}Running EventSub server on "
+                  f"[{Fore.MAGENTA}port={settings.EVENTSUB_URI_PORT}{Fore.RED}].{Style.RESET_ALL}")
         except Exception as e:
             print(e.with_traceback(tb=None))
 
@@ -82,49 +86,58 @@ class Bot(commands.Bot):
 
         broadcasters: List[User] = await self.fetch_users(names=[settings.BOT_JOIN_CHANNEL])
         for broadcaster in broadcasters:
-            print(f'Subscribing to events for {broadcaster.name}\'s channel.')
+            print(f'{Fore.RED}Subscribing to events for '
+                  f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_follows event"""
                 await self.esclient.subscribe_channel_follows_v2(broadcaster=broadcaster.id, moderator=broadcaster.id)
-                print(f'Subscribed to channel_follows event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_follows{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_follows event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_follows{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_cheers event """
                 await self.esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
-                print(f'Subscribed to channel_cheers event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_cheers{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_cheers event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_cheers{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_subscriptions event """
                 await self.esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
-                print(f'Subscribed to channel_subscriptions event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_subscriptions{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_subscriptions event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_subscriptions{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_raid event """
                 await self.esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
-                print(f'Subscribed to channel_raid event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_raid{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_raid event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_raid{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_stream_start event """
                 await self.esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
-                print(f'Subscribed to channel_stream_start event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_stream_start event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_stream_end event """
                 await self.esclient.subscribe_channel_stream_end(broadcaster=broadcaster.id)
-                print(f'Subscribed to channel_stream_end event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'Failed to subscribe to channel_stream_end event for {broadcaster.name}\'s channel.')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
@@ -156,11 +169,12 @@ class Bot(commands.Bot):
         self.esclient.client._http.token = app_token
         self.esclient._http.__init__(client=self.esclient, token=app_token)
         es_subs = await self.esclient._http.get_subscriptions()
-        print(f"{len(es_subs)} event subs found")
+        print(f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}")
         for es_sub in es_subs:
             await self.esclient._http.delete_subscription(es_sub)
-            print(f"deleting event sub: {es_sub.id}")
-        print(f"deleted all event subs.")
+            print(f"{Fore.RED}Deleting the event subscription with id: "
+                  f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}")
+        print(f"{Fore.RED}Deleted all event subscription(s).{Style.RESET_ALL}")
 
     async def detect_bot_spam(self, message: twitchio.Message) -> bool:
         if str(message.content).count('offer promotion of your channel') >= 1 \
@@ -183,7 +197,10 @@ class Bot(commands.Bot):
             # logins = [channel.name for channel in self.connected_channels]
             # user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
             for channel in self.connected_channels:
-                print(f'Logged into channel(s): {channel.name}, as bot user: {self.nick} (ID: {self.user_id})')
+                print(f"{Fore.BLUE}[BOT READY] Logged into channel(s): {Fore.MAGENTA}{channel.name}{Fore.BLUE}, "
+                      f"as bot user: {Fore.MAGENTA}{self.nick}{Fore.BLUE} "
+                      f"({Fore.MAGENTA}ID: {self.user_id}{Fore.BLUE})!{Style.RESET_ALL}")
+                # uncomment below to say in chat when the bot joins
                 # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: {self.nick} (ID: {self.user_id})')
 
     async def event_message(self, message: twitchio.Message):
@@ -191,7 +208,7 @@ class Bot(commands.Bot):
         if message.echo:
             return
         # Print the contents of our message to console...
-        print(f"[{message.channel.name}][{message.author.name}]: {message.content}")
+        print(f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}{message.content}{Style.RESET_ALL}")
 
         """ Messages that include common bot spammer phrases auto-ban. """
         is_bot = await self.detect_bot_spam(message=message)
@@ -216,7 +233,7 @@ class Bot(commands.Bot):
         user_data = [row for row in user_result_set][0]
         try:
             auth_validate = await self._http.validate(token=user_data['access_token'])
-            print(f"The user token for {login} is valid.")
+            print(f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
             return auth_validate
         except errors.AuthenticationError:
             # Try to use a refresh token to update the access token
@@ -225,19 +242,20 @@ class Bot(commands.Bot):
             self.database.insert_user_data(user_data['broadcaster_id'], user_data['broadcaster_login'], user_data['email'],
                                            auth_result['access_token'], auth_result['expires_in'],
                                            auth_result['refresh_token'], auth_result['scope'])
-            print(f"Updated access and refresh token for {user_data['broadcaster_login']}")
+            print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
             try:
                 auth_validate = await self._http.validate(token=auth_result['access_token'])
-                print(f"The refreshed user token for {login} is valid.")
+                print(f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
                 await self.update_bot_http_token()
                 return auth_validate
             except errors.AuthenticationError:
-                print(f"The refreshed user token for {login} is invalid.")
+                print(f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
 
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
-        if int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
+        if channel[0]['game_id'] is not None \
+                and int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
             user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
@@ -245,6 +263,7 @@ class Bot(commands.Bot):
                                            prompt="Immediately closes the last terminal window that was opened without warning!",
                                            global_cooldown=5 * 60,
                                            token=user_token_result_set['access_token'])
+            print(f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
@@ -260,6 +279,7 @@ class Bot(commands.Bot):
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
                                            token=user_token_result_set['access_token'])
+            print(f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
@@ -268,14 +288,15 @@ class Bot(commands.Bot):
         rewards = await self._http.get_rewards(broadcaster_id=broadcaster.id,
                                                only_manageable=True,
                                                token=user_access_token_result_set['access_token'])
-        print(f"Got rewards: [{json.dumps(rewards)}]")
+        print(f"{Fore.RED}Got rewards: [{Fore.MAGENTA}{json.dumps(rewards)}{Fore.RED}]{Style.RESET_ALL}")
         if rewards is not None:
             custom_reward_titles = ["Kill My Shell", "VIP"]
             for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
                 await self._http.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                       reward_id=reward["id"],
                                                       token=user_access_token_result_set['access_token'])
-                print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
+                print(f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
+                      f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
         message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
@@ -283,7 +304,7 @@ class Bot(commands.Bot):
             message += f" They were last playing \'{channel['game_name']}\'."
 
         user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        if hasattr('access_token', user_access_token_result_set):
+        if hasattr(user_access_token_result_set, 'access_token'):
             """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
             await self._http.post_chat_announcement(token=user_access_token_result_set['access_token'],
                                                     broadcaster_id=broadcaster.id,
@@ -302,6 +323,9 @@ class Bot(commands.Bot):
                                                to_broadcaster_id=channel['broadcaster_id'],
                                                moderator_id=broadcaster.id)
 
+        else:
+            await broadcaster.channel.send(message)
+
     """
     BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
     """
@@ -318,7 +342,6 @@ class Bot(commands.Bot):
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292:
             param: str = str(ctx.message.content).split(maxsplit=1)[1]
             await self.join_channels([param])
-        print(f"connected_channels: {self.connected_channels}")
 
     @commands.command()
     async def leave(self, ctx: commands.Context):
@@ -328,7 +351,7 @@ class Bot(commands.Bot):
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
                 and str(settings.BOT_JOIN_CHANNEL).lower() != param.lower():  # keep bot connected to initial channel
             await self.part_channels([param])
-        print(f"connected_channels: {self.connected_channels}")
+        print(f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}")
 
     @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
     async def infosec_streams(self, ctx: commands.Context):

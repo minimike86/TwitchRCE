@@ -14,7 +14,7 @@ from db.database import Database
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-redirect_uri = 'https://2484-92-25-14-40.ngrok.io/auth'
+redirect_uri = 'https://2484-92-25-14-40.ngrok.io/auth'  # CHANGE THIS TO MATCH YOUR ENDPOINT!
 
 # https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow
 scope = "analytics:read:extensions analytics:read:games bits:read channel:edit:commercial channel:manage:broadcast channel:read:charity channel:manage:extensions channel:manage:moderators channel:manage:polls channel:manage:predictions channel:manage:raids channel:manage:redemptions channel:manage:schedule channel:manage:videos channel:read:editors channel:read:goals channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:stream_key channel:read:subscriptions channel:read:vips channel:manage:vips clips:edit moderation:read moderator:manage:announcements moderator:manage:automod moderator:read:automod_settings moderator:manage:automod_settings moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms moderator:manage:chat_messages moderator:read:chat_settings moderator:manage:chat_settings moderator:read:chatters moderator:read:followers moderator:read:shield_mode moderator:manage:shield_mode moderator:read:shoutouts moderator:manage:shoutouts user:edit user:edit:follows user:manage:blocked_users user:read:blocked_users user:read:broadcast user:manage:chat_color user:read:email user:read:follows user:read:subscriptions user:manage:whispers channel:moderate chat:edit chat:read whispers:read whispers:edit"
@@ -24,7 +24,7 @@ authorization_url = f"https://id.twitch.tv/oauth2/authorize?client_id={settings.
                     f"&response_type=code" \
                     f"&scope={scope.replace(' ', '%20')}" \
                     f"&state={secrets.token_hex(16)}"
-print("Launching auth site:", authorization_url)
+print(f"Launching auth site:", authorization_url)
 
 
 async def use_code_and_store_access_token(code: str):

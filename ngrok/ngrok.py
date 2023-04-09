@@ -1,4 +1,5 @@
 from pyngrok import ngrok, conf
+from colorama import Fore, Back, Style
 
 import settings
 
@@ -25,8 +26,8 @@ class NgrokClient:
                     self._eventsub_tunnel = ngrok.connect(name='eventsub', pyngrok_config=pyngrok_config, bind_tls=True)
                     self._tunnels = ngrok.get_tunnels()
 
-            except BaseException as e:
-                print("Failed to instantiate ngrok http_tunnel: ", e)
+            except BaseException as error:
+                print(f"{Fore.RED}Failed to instantiate ngrok http_tunnel: {error}{Style.RESET_ALL}")
                 # exit(0)
 
     async def start(self) -> (str, str):
@@ -53,10 +54,10 @@ class NgrokClient:
 
             if str(settings.AUTH_URI_PORT) in tunnel.config['addr']:
                 auth_public_url = f"{tunnel.public_url}/auth"
-                print(f"auth_public_url: {auth_public_url} -> {tunnel.config['addr']}")
+                print(f"{Fore.RED}auth_public_url: {Fore.MAGENTA}{auth_public_url}{Fore.RED} -> {Fore.MAGENTA}{tunnel.config['addr']}{Fore.RED}.{Style.RESET_ALL}")
 
             if str(settings.EVENTSUB_URI_PORT) in tunnel.config['addr']:
                 eventsub_public_url = f"{tunnel.public_url}/eventsub"
-                print(f"eventsub_public_url: {eventsub_public_url} -> {tunnel.config['addr']}")
+                print(f"{Fore.RED}eventsub_public_url: {Fore.MAGENTA}{eventsub_public_url}{Fore.RED} -> {Fore.MAGENTA}{tunnel.config['addr']}{Fore.RED}.{Style.RESET_ALL}")
 
         return auth_public_url, eventsub_public_url

@@ -1,6 +1,7 @@
 import json
 import sqlite3
 from typing import Optional
+from colorama import Fore, Back, Style
 
 import settings
 
@@ -16,18 +17,18 @@ class Database:
         """ init memory db """
         try:
             self.conn = sqlite3.connect(':memory:')
-            print("Connected to in-memory db")
+            print(f"{Fore.RED}Connected to in-memory db.{Style.RESET_ALL}")
         except sqlite3.Error as error:
-            print("Error while connecting to memory db: ", error)
+            print(f"{Fore.RED}Error while connecting to memory db: {error}{Style.RESET_ALL}")
             exit(0)
 
     def open_disk(self):
         """ init disk db """
         try:
             self.conn = sqlite3.connect(self.filename)
-            print("Connected to disk db")
+            print(f"{Fore.RED}Connected to disk db.{Style.RESET_ALL}")
         except sqlite3.Error as error:
-            print("Error while connecting to disk db: ", error)
+            print(f"{Fore.RED}Error while connecting to disk db: {error}{Style.RESET_ALL}")
             exit(0)
 
     def backup_to_disk(self):

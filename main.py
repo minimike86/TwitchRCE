@@ -1,6 +1,7 @@
 import asyncio
 from typing import Optional
 
+from colorama import Fore, Back, Style
 from twitchio.ext import eventsub, pubsub
 
 from cogs.rce import RCECog
@@ -14,7 +15,7 @@ from ngrok.ngrok import NgrokClient
 import settings
 
 
-print("Starting TwitchRCE!")
+print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
 
 # init db
 db = Database()
@@ -31,7 +32,7 @@ async def get_app_token() -> str:
     """ Uses the bots' client id and secret to generate a new application token via client credentials grant flow """
     client_creds_grant_flow = await twitch_api_auth_http.client_credentials_grant_flow()
     db.insert_app_data(client_creds_grant_flow['access_token'], client_creds_grant_flow['expires_in'], client_creds_grant_flow['token_type'])
-    print("Updated App Token!")
+    print(f"{Fore.RED}Updated App Token!{Style.RESET_ALL}")
     return client_creds_grant_flow['access_token']
 
 
@@ -48,7 +49,7 @@ async def refresh_user_token(user: any) -> str:
     db.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
                         auth_result['access_token'], auth_result['expires_in'],
                         auth_result['refresh_token'], auth_result['scope'])
-    print(f"Updated access and refresh token for {user['broadcaster_login']}")
+    print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['broadcaster_login']}{Fore.RED}!{Style.RESET_ALL}")
     return auth_result['access_token']
 
 # Start a ngrok client as all inbound event subscriptions need a public facing IP address and can handle https traffic.
@@ -90,20 +91,21 @@ bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscrip
 
 @bot.event()
 async def event_error(error: Exception, data: Optional[str] = None):
-    print(f"======================================================================== \n"
+    print(f"{Fore.RED}======================================================================== \n"
           f"Event Error: '{error}'! \n"
           f"Event Data: '{data}'! \n"
-          f"=======================================================================")
+          f"======================================================================={Style.RESET_ALL}")
 
 
 @bot.event()
 async def event_channel_join_failure(channel: str):
-    print(f"Bot failed to join {channel} channel!")
+    print(f"{Fore.RED}Bot failed to join {Fore.MAGENTA}{channel}{Fore.RED} channel!{Style.RESET_ALL}")
 
 
 @bot.event()
 async def event_channel_joined(channel):
-    print(f"Bot successfully joined {channel} channel!")
+    print(f"{Fore.RED}Bot successfully joined {Fore.MAGENTA}{channel}{Fore.RED}!{Style.RESET_ALL}")
+    print(f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{bot.connected_channels}{Fore.RED}!{Style.RESET_ALL}")
 
 
 @bot.event()

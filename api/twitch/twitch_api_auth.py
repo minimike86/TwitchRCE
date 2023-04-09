@@ -1,5 +1,6 @@
 import asyncio
 from typing import Optional
+from colorama import Fore, Back, Style
 
 import aiohttp
 import json
@@ -108,10 +109,10 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(f"Failed to refresh token using token: {refresh_token}.")
+            print(f"{Fore.RED}Failed to refresh token using token: {Fore.MAGENTA}{refresh_token}{Fore.RED}.{Style.RESET_ALL}")
             exit(0)
         if status == 200:
-            print(f"Token refreshed: {json.dumps(data)}.")
+            print(f"{Fore.GREEN}Token refreshed: {Fore.MAGENTA}{json.dumps(data)}{Fore.GREEN}.{Style.RESET_ALL}")
             return data
 
     async def validate_token(self, access_token: str) -> bool:
@@ -133,10 +134,10 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 401:
-            print(f"Invalid access token: {json.dumps(data)}.")
+            print(f"{Fore.RED}Invalid access token: {Fore.MAGENTA}{json.dumps(data)}{Fore.RED}.{Style.RESET_ALL}")
             return False
         if status == 200:
-            print(f"Valid access token: {json.dumps(data)}.")
+            print(f"{Fore.GREEN}Valid access token: {Fore.MAGENTA}{json.dumps(data)}{Fore.GREEN}.{Style.RESET_ALL}")
             return True
 
     async def get_users(self, access_token: str, ids=Optional[int], logins=Optional[str]):
