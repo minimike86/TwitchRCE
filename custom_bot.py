@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+import random
 from typing import List
 
 from colorama import Fore, Back, Style
@@ -81,6 +82,8 @@ class Bot(commands.Bot):
                   f"[{Fore.MAGENTA}port={settings.EVENTSUB_URI_PORT}{Fore.RED}].{Style.RESET_ALL}")
         except Exception as e:
             print(e.with_traceback(tb=None))
+
+        # TODO: Make subscriptions happen on channel join / remove subs on leave
 
         await self.delete_event_subscriptions()
 
@@ -299,32 +302,52 @@ class Bot(commands.Bot):
                       f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
-        message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
+        message: list[str] = [f"Please check out "]
+        flattering_strings = ["the brilliant", "the amazing", "the outstanding", "the remarkable", "the exceptional",
+                              "the impressive", "the phenomenal", "the talented", "the genius", "the masterful"]
+        message.append(random.choice(flattering_strings))
+        message.append(f" {channel['broadcaster_name']}\'s channel over at "
+                       f"(https://www.twitch.tv/{channel['broadcaster_login']})!")
         if not channel['game_name'] == '':
-            message += f" They were last playing \'{channel['game_name']}\'."
+            message.append(f" They were last playing `{channel['game_name']}`.")
 
-        user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        if hasattr(user_access_token_result_set, 'access_token'):
-            """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
-            await self._http.post_chat_announcement(token=user_access_token_result_set['access_token'],
-                                                    broadcaster_id=broadcaster.id,
-                                                    message=message,
-                                                    moderator_id=broadcaster.id,
-                                                    # Moderator ID must match the user ID in the user access token.
-                                                    color=color)  # blue green orange purple primary
+        moderator_result_set = self.database.fetch_user(broadcaster_login=settings.BOT_USERNAME)
+        error_count = 0
+        try:
+            if 'access_token' in dict(moderator_result_set[0]).keys():
+                """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
+                await self._http.post_chat_announcement(token=dict(moderator_result_set[0])['access_token'],
+                                                        broadcaster_id=broadcaster.id,
+                                                        message=''.join(message),
+                                                        moderator_id=dict(moderator_result_set[0])['broadcaster_id'],
+                                                        # Moderator ID must match the user ID in the user access token.
+                                                        color=color)  # blue green orange purple primary
 
-            """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
-                The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
-            if channel['broadcaster_id'] != str(broadcaster.id):
-                streams = await self._http.get_streams(user_ids=[broadcaster.id])
-                if len(streams) >= 1 and streams[0]['type'] == 'live':
-                    # Moderator ID must match the user ID in the user access token.
-                    await broadcaster.shoutout(token=user_access_token_result_set['access_token'],
-                                               to_broadcaster_id=channel['broadcaster_id'],
-                                               moderator_id=broadcaster.id)
+        except Exception as error:
+            print(f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
+                  f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
+            error_count += 1
 
-        else:
-            await broadcaster.channel.send(message)
+        try:
+            if 'access_token' in dict(moderator_result_set[0]).keys():
+                """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
+                    The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
+                if channel['broadcaster_id'] != str(broadcaster.id):
+                    streams = await self._http.get_streams(user_ids=[broadcaster.id])
+                    if len(streams) >= 1 and streams[0]['type'] == 'live':
+                        # Moderator ID must match the user ID in the user access token.
+                        await broadcaster.shoutout(token=dict(moderator_result_set[0])['access_token'],
+                                                   to_broadcaster_id=channel['broadcaster_id'],
+                                                   moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
+
+        except Exception as error:
+            print(f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
+                  f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
+            error_count += 1
+
+        if error_count >= 1:
+            await broadcaster.channel.send(''.join(message))
+
 
     """
     BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
@@ -338,19 +361,19 @@ class Bot(commands.Bot):
     @commands.command()
     async def join(self, ctx: commands.Context):
         """ type !join <channel> to join the channel """
+        param_username = re.sub(r"^@", "", str(ctx.message.content).split(maxsplit=1)[1])
         # Limit to broadcaster
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292:
-            param: str = str(ctx.message.content).split(maxsplit=1)[1]
-            await self.join_channels([param])
+            await self.join_channels([param_username])
 
     @commands.command()
     async def leave(self, ctx: commands.Context):
         """ type !leave <channel> to join the channel """
+        param_username = re.sub(r"^@", "", str(ctx.message.content).split(maxsplit=1)[1])
         # Limit to broadcaster
-        param: str = str(ctx.message.content).split(maxsplit=1)[1]
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
-                and str(settings.BOT_JOIN_CHANNEL).lower() != param.lower():  # keep bot connected to initial channel
-            await self.part_channels([param])
+                and str(settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # keep bot connected to initial channel
+            await self.part_channels([param_username])
         print(f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}")
 
     @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
@@ -366,10 +389,28 @@ class Bot(commands.Bot):
         if str(ctx.message.content).count('reset') >= 1:
             self.death_count[ctx.channel.name] = 0  # Reset key to 0
         else:
-            plus_count = str(ctx.message.content).count('+')
-            minus_count = str(ctx.message.content).count('-')
-            self.death_count[ctx.channel.name] += plus_count - minus_count  # key equals the sum of +/- deaths
+            param: str = str(ctx.message.content).split(maxsplit=1)[1]
+            match = re.match(r"^([+-])(\d+)$", param)
+            if match:
+                sign = match.group(1)
+                num = int(match.group(2))
+                if sign == "+":
+                    self.death_count[ctx.channel.name] += num
+                elif sign == "-":
+                    self.death_count[ctx.channel.name] -= num
+            else:
+                plus_count = str(ctx.message.content).count('+')
+                minus_count = str(ctx.message.content).count('-')
+                self.death_count[ctx.channel.name] += plus_count - minus_count  # key equals the sum of +/- deaths
         await ctx.send(f'Deaths: {self.death_count[ctx.channel.name]}')
+
+    @commands.command(aliases=['follow'])
+    async def follow_channel(self, ctx: commands.Context):
+        param: str = str(ctx.message.content).split(maxsplit=1)[1]
+        bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USERNAME])
+        bot_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
+        to_follow_user: list[twitchio.User] = await self.fetch_users(names=[param])
+        await bot_user[0].follow(userid=to_follow_user[0].id, token=bot_token_result_set['access_token'])
 
     @commands.command(aliases=['mod'])
     async def mod_bot(self, ctx: commands.Context):

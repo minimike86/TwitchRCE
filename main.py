@@ -300,8 +300,7 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
 @bot.event()
 async def event_eventsub_notification_stream_end(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when stream goes offline """
-    print(
-        f"Received StreamOfflineData event! [broadcaster.name={payload.data.broadcaster.name}]")
+    print(f"Received StreamOfflineData event! [broadcaster.name={payload.data.broadcaster.name}]")
 
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
     await bot.delete_all_custom_rewards(payload.data.broadcaster)
