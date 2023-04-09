@@ -2,9 +2,11 @@ import json
 import sqlite3
 from typing import Optional
 
+import settings
+
 
 class Database:
-    def __init__(self, filename='twitchrce.sqlite'):
+    def __init__(self, filename=settings.DATABASE_FILENAME):
         self.filename: str = filename
         self.conn: sqlite3.Connection | None = None
         self.open_disk()
@@ -17,6 +19,7 @@ class Database:
             print("Connected to in-memory db")
         except sqlite3.Error as error:
             print("Error while connecting to memory db: ", error)
+            exit(0)
 
     def open_disk(self):
         """ init disk db """
@@ -25,6 +28,7 @@ class Database:
             print("Connected to disk db")
         except sqlite3.Error as error:
             print("Error while connecting to disk db: ", error)
+            exit(0)
 
     def backup_to_disk(self):
         """ backup in-memory db to disk """

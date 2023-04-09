@@ -6,6 +6,8 @@ CLIENT_SECRET = config('CLIENT_SECRET')
 VIRUS_TOTAL_API_KEY = config('VIRUS_TOTAL_API_KEY')
 BARD_SECURE_1PSID = config('BARD_SECURE_1PSID')
 
+DATABASE_FILENAME = config('DATABASE_FILENAME', default='twitchrce.sqlite')
+
 AUTH_URI_PORT = int(config('AUTH_URI_PORT', default=3000))
 EVENTSUB_URI_PORT = int(config('EVENTSUB_URI_PORT', default=8080))
 
