@@ -98,9 +98,24 @@ async def event_error(error: Exception, data: Optional[str] = None):
 
 @bot.event()
 async def event_channel_join_failure(channel: str):
-    print(f"======================================================================== \n"
-          f"Event: Failed to join channel '{channel}'! \n"
-          f"========================================================================")
+    print(f"Bot failed to join {channel} channel!")
+
+
+@bot.event()
+async def event_channel_joined(channel):
+    print(f"Bot successfully joined {channel} channel!")
+
+
+@bot.event()
+async def event_join(channel, user):
+    # print(f"JOIN is received from Twitch for {channel} channel!")
+    pass
+
+
+@bot.event()
+async def event_part(user):
+    # print(f"PART is received from Twitch for {user.name} channel!")
+    pass
 
 
 @bot.event()
