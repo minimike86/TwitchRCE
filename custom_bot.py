@@ -36,7 +36,7 @@ class Bot(commands.Bot):
         from cogs.user_cog import UserCog
         self.add_cog(UserCog(self))
 
-        self.death_count = 0
+        self.death_count = {}
 
     async def update_bot_http_token(self):
         """ updates the bots http client token """
@@ -361,13 +361,15 @@ class Bot(commands.Bot):
     @commands.command(aliases=['deaths', 'death', 'dead', 'died', 'ded', 'dc'])
     async def death_counter(self, ctx: commands.Context):
         """ type !death_counter, !ded or !dc appended with a plus (+) or minus (-) to increase/decrease the death counter """
+        if ctx.channel.name not in self.death_count:
+            self.death_count[ctx.channel.name] = 0  # Add key if it doesn't exist
         if str(ctx.message.content).count('reset') >= 1:
-            self.death_count = 0
+            self.death_count[ctx.channel.name] = 0  # Reset key to 0
         else:
             plus_count = str(ctx.message.content).count('+')
             minus_count = str(ctx.message.content).count('-')
-            self.death_count += plus_count - minus_count
-        await ctx.send(f'Deaths: {self.death_count}')
+            self.death_count[ctx.channel.name] += plus_count - minus_count  # key equals the sum of +/- deaths
+        await ctx.send(f'Deaths: {self.death_count[ctx.channel.name]}')
 
     @commands.command(aliases=['mod'])
     async def mod_bot(self, ctx: commands.Context):
