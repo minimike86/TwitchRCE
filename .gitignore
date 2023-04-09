@@ -140,3 +140,4 @@ dmypy.json
 /.idea/TwitchRCE.iml
 /.idea/vcs.xml
 /auth/twitchrce.sqlite
+/db/twitchrce.sqlite

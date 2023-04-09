@@ -94,30 +94,35 @@ class Bot(commands.Bot):
             try:
                 """ create new event subscription for channel_cheers event """
                 await self.esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
+                print(f'Subscribed to channel_cheers event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_cheers event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_subscriptions event """
                 await self.esclient.subscribe_channel_subscriptions(broadcaster=broadcaster.id)
+                print(f'Subscribed to channel_subscriptions event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_subscriptions event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_raid event """
                 await self.esclient.subscribe_channel_raid(to_broadcaster=broadcaster.id)
+                print(f'Subscribed to channel_raid event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_raid event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_stream_start event """
                 await self.esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
+                print(f'Subscribed to channel_stream_start event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_stream_start event for {broadcaster.name}\'s channel.')
 
             try:
                 """ create new event subscription for channel_stream_end event """
                 await self.esclient.subscribe_channel_stream_end(broadcaster=broadcaster.id)
+                print(f'Subscribed to channel_stream_end event for {broadcaster.name}\'s channel.')
             except twitchio.HTTPException:
                 print(f'Failed to subscribe to channel_stream_end event for {broadcaster.name}\'s channel.')
 
@@ -185,14 +190,18 @@ class Bot(commands.Bot):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
         if message.echo:
             return
-        print('Bot: ', message.author.name, message.content)  # Print the contents of our message to console...
+        # Print the contents of our message to console...
+        print(f"[{message.channel.name}][{message.author.name}]: {message.content}")
 
         """ Messages that include common bot spammer phrases auto-ban. """
         is_bot = await self.detect_bot_spam(message=message)
         if is_bot:
             user: PartialUser = await message.channel.user()
-            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=user.id)  # oauth user access token with the ``moderator:manage:banned_users`` scope
-            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id, user_id=message.author.id, reason='Banned for posting known bot spam/scam messages (eg: buy follows at dogehype)')
+            # oauth user access token with the ``moderator:manage:banned_users`` scope
+            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=user.id)
+            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id,
+                                user_id=message.author.id, reason='Banned for posting known bot spam/scam messages '
+                                                                  '(eg: buy follows at dogehype)')
         else:
             """ Handle commands overriding the default `event_message`. """
             await self.handle_commands(message)
@@ -269,25 +278,29 @@ class Bot(commands.Bot):
                 print(f"Deleted reward: [id={reward['id']}][title={reward['title']}]")
 
     async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
-        """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
         message = f"Please check out {channel['broadcaster_name']}\'s channel https://www.twitch.tv/{channel['broadcaster_login']}!"
         if not channel['game_name'] == '':
             message += f" They were last playing \'{channel['game_name']}\'."
+
         user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        await self._http.post_chat_announcement(token=user_access_token_result_set['access_token'],
-                                                broadcaster_id=broadcaster.id,
-                                                message=message,
-                                                moderator_id=broadcaster.id,
-                                                # This ID must match the user ID in the user access token.
-                                                color=color)  # blue green orange purple primary
-        """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
-            The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
-        if channel['broadcaster_id'] != str(broadcaster.id):
-            streams = await self._http.get_streams(user_ids=[broadcaster.id])
-            if len(streams) >= 1 and streams[0]['type'] == 'live':
-                await broadcaster.shoutout(token=user_access_token_result_set['access_token'],
-                                           to_broadcaster_id=channel['broadcaster_id'],
-                                           moderator_id=broadcaster.id)
+        if hasattr('access_token', user_access_token_result_set):
+            """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
+            await self._http.post_chat_announcement(token=user_access_token_result_set['access_token'],
+                                                    broadcaster_id=broadcaster.id,
+                                                    message=message,
+                                                    moderator_id=broadcaster.id,
+                                                    # Moderator ID must match the user ID in the user access token.
+                                                    color=color)  # blue green orange purple primary
+
+            """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
+                The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
+            if channel['broadcaster_id'] != str(broadcaster.id):
+                streams = await self._http.get_streams(user_ids=[broadcaster.id])
+                if len(streams) >= 1 and streams[0]['type'] == 'live':
+                    # Moderator ID must match the user ID in the user access token.
+                    await broadcaster.shoutout(token=user_access_token_result_set['access_token'],
+                                               to_broadcaster_id=channel['broadcaster_id'],
+                                               moderator_id=broadcaster.id)
 
     """
     BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
@@ -297,6 +310,25 @@ class Bot(commands.Bot):
     async def hello(self, ctx: commands.Context):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
+
+    @commands.command()
+    async def join(self, ctx: commands.Context):
+        """ type !join <channel> to join the channel """
+        # Limit to broadcaster
+        if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292:
+            param: str = str(ctx.message.content).split(maxsplit=1)[1]
+            await self.join_channels([param])
+        print(f"connected_channels: {self.connected_channels}")
+
+    @commands.command()
+    async def leave(self, ctx: commands.Context):
+        """ type !leave <channel> to join the channel """
+        # Limit to broadcaster
+        param: str = str(ctx.message.content).split(maxsplit=1)[1]
+        if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
+                and str(settings.BOT_JOIN_CHANNEL).lower() != param.lower():  # keep bot connected to initial channel
+            await self.part_channels([param])
+        print(f"connected_channels: {self.connected_channels}")
 
     @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
     async def infosec_streams(self, ctx: commands.Context):
@@ -401,9 +433,10 @@ class Bot(commands.Bot):
         """ type !bard <query> to ask bard a question """
         param: str = str(ctx.message.content).split(maxsplit=1)[1]
         chatbot = Chatbot(settings.BARD_SECURE_1PSID)
-        response = chatbot.ask(f"In fewer than 450 characters, and in as few sentences as possible, "
-                               f"and without suggesting additional bullet points. Answer this query: '{param}'.")
-        await ctx.send(f"{response['content'][:450]}!")
+        response = chatbot.ask(f"In fewer than 450 characters and in as few sentences as possible. "
+                               f"Preferably reply in a single sentence and without suggesting additional "
+                               f"tips or bullet points. Answer this query: '{param}'.")
+        await ctx.channel.send(f"{response['content'][:500]}")
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
@@ -447,5 +480,6 @@ class Bot(commands.Bot):
         if len(param_username) >= 1:
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
-            from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-            await self.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
+            from_broadcaster: list[User] = await self.fetch_users(names=[ctx.channel.name])
+            # from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+            await self.announce_shoutout(broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0], color='blue')
