@@ -2,6 +2,7 @@ import re
 import shlex
 import traceback
 import textwrap
+from colorama import Fore, Back, Style
 
 import subprocess
 from subprocess import Popen, PIPE
@@ -149,8 +150,8 @@ class RCECog(commands.Cog):
             try:
                 cmd2 = f"xkill -id {proc_id}"
                 result = subprocess.check_output(cmd2, shell=True)
-                result = f"{author_login} just killed {broadcaster[0]['display_name']}'s shell. " \
-                         + f"stdout: {result.decode()}"
+                result = f"{Fore.RED}{author_login} just killed {broadcaster[0]['display_name']}'s shell. " \
+                         + f"{Fore.MAGENTA}stdout: {result.decode()}{Style.RESET_ALL}"
                 try:
                     await self.bot._http.update_reward_redemption_status(token=broadcaster_access_token,
                                                                          broadcaster_id=str(broadcaster[0]['id']),
@@ -167,7 +168,7 @@ class RCECog(commands.Cog):
                     print(f"{textwrap.shorten(result, width=500)}")
 
             except Exception as err:
-                print(f"something broke {type(err)}", traceback.format_exc())
+                print(f"{Fore.RED}something broke {type(err)}{Style.RESET_ALL}", traceback.format_exc())
         else:
             try:
                 await self.bot._http.update_reward_redemption_status(token=broadcaster_access_token,
@@ -175,11 +176,11 @@ class RCECog(commands.Cog):
                                                                      reward_id=event.id,
                                                                      custom_reward_id=event.reward.id,
                                                                      status=False)
-                print(f"Unlucky {author_login} but there are no terminals open to kill")
+                print(f"{Fore.RED}Unlucky {author_login} but there are no terminals open to kill{Style.RESET_ALL}")
                 await self.bot._http.post_chat_announcement(token=mod_access_token,
                                                             broadcaster_id=str(broadcaster[0]['id']),
                                                             moderator_id=self.bot.user_id,
                                                             message=f"Unlucky {author_login} there are no terminals open to kill; your channel points have been refunded",
                                                             color="orange")
             except errors.AuthenticationError:
-                print(f"Unlucky {author_login} but there are no terminals open to kill")
+                print(f"{Fore.RED}Unlucky {author_login} but there are no terminals open to kill{Style.RESET_ALL}")
