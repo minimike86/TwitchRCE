@@ -123,11 +123,8 @@ async def event_part(user):
 @bot.event()
 async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
     # Log redemption request - reward: CustomReward, user: PartialUser
-    print(f"======================================================================== \n"
-          f"Event: {event.channel_id}, {event.id}, {event.status}, {event.timestamp} \n"
-          f"Reward: {event.reward.id}, {event.reward.title}, {event.reward.cost} \n"
-          f"User: {event.user.id}, {event.user.name} \n"
-          f"========================================================================")
+    print(f"{Fore.RED}[PubSub][ChannelPoints]: {event.reward.id}, {event.reward.title}, {event.reward.cost} | "
+          f"User: {event.user.id}, {event.user.name}{Style.RESET_ALL}")
 
     # Check if reward can be redeemed at this time
     if not event.reward.paused and event.reward.enabled:
@@ -147,7 +144,8 @@ async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
 @bot.event()
 async def event_eventsub_notification_followV2(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when someone follows the channel """
-    print(f'Received follow event! {payload.data.user.name} [{payload.data.user.id}]')
+    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Follow]{Fore.RED}[EventSub]: "
+          f"{payload.data.user.name} [{payload.data.user.id}]{Style.RESET_ALL}")
     await bot.get_channel(payload.data.broadcaster.name).send(
         f'Thank you {payload.data.user.name} for following the channel!')
 
@@ -163,7 +161,8 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
         event_string = f"Received cheer event from {payload.data.user.name} [{payload.data.user.id}], " \
                        f"cheered {payload.data.bits} bits, " \
                        f"message '{payload.data.message}'."
-    print(event_string)
+    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Cheer]{Fore.RED}[EventSub]: "
+          f"{event_string}{Style.RESET_ALL}")
 
     # create stream marker (Stream markers cannot be created when the channel is offline)
     await bot.set_stream_marker(payload=payload, event_string=event_string)
@@ -180,10 +179,10 @@ async def event_eventsub_notification_cheer(payload: eventsub.NotificationEvent)
         if len(clips) >= 1:
             """ check if sub is a streamer with clips on their channel and shoutout with clip player """
             await bot.get_channel(payload.data.broadcaster.name).send(f"!so {channel[0]['broadcaster_login']}")
-            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+            await bot.announce_shoutout(ctx=None, broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
         else:
             """ shoutout without clip player """
-            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+            await bot.announce_shoutout(ctx=None, broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
 
 
 @bot.event()
@@ -197,7 +196,8 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
         else:
             event_string = f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], " \
                            f"with tier {payload.data.tier / 1000} sub."
-        print(event_string)
+        print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Sub]{Fore.RED}[EventSub]: "
+              f"{event_string}{Style.RESET_ALL}")
 
         # create stream marker (Stream markers cannot be created when the channel is offline)
         await bot.set_stream_marker(payload=payload, event_string=event_string)
@@ -216,10 +216,10 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
         if len(clips) >= 1:
             """ check if sub is a streamer with clips on their channel and shoutout with clip player """
             await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(f"!so {channel[0]['broadcaster_login']}")
-            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+            await bot.announce_shoutout(ctx=None, broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
         else:
             """ shoutout without clip player """
-            await bot.announce_shoutout(broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
+            await bot.announce_shoutout(ctx=None, broadcaster=payload.data.broadcaster, channel=channel[0], color='green')
 
     else:
         """ event triggered when someone gifts a sub to someone in the channel """
@@ -229,7 +229,8 @@ async def event_eventsub_notification_subscription(payload: eventsub.Notificatio
         else:
             event_string = f"Received gift subscription event from {payload.data.user.name} [{payload.data.user.id}], " \
                            f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
-        print(event_string)
+        print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[GiftSub]{Fore.RED}[EventSub]: "
+              f"{event_string}{Style.RESET_ALL}")
 
         # create stream marker (Stream markers cannot be created when the channel is offline)
         await bot.set_stream_marker(payload=payload, event_string=event_string)
@@ -250,7 +251,8 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
     """ event triggered when someone raids the channel """
     event_string = f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], " \
                    f"with {payload.data.viewer_count} viewers"
-    print(event_string)
+    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
+          f"{event_string}{Style.RESET_ALL}")
 
     # Log the raid occurrence
     db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
@@ -274,17 +276,17 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
     if len(clips) >= 1:
         """ check if raider is a streamer with clips on their channel and shoutout with clip player """
         await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
-        await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
+        await bot.announce_shoutout(ctx=None, broadcaster=broadcaster, channel=channel[0], color='orange')
     else:
         """ shoutout without clip player """
-        await bot.announce_shoutout(broadcaster=broadcaster, channel=channel[0], color='orange')
+        await bot.announce_shoutout(ctx=None, broadcaster=broadcaster, channel=channel[0], color='orange')
 
 
 @bot.event()
 async def event_eventsub_notification_stream_start(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when stream goes live """
-    print(
-        f"Received StreamOnlineData event! [broadcaster.name={payload.data.broadcaster.name}][type={payload.data.type}][started_at={payload.data.started_at}]")
+    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[StreamOnline]{Fore.RED}[EventSub]: "
+          f"type={payload.data.type}, started_at={payload.data.started_at}.{Style.RESET_ALL}")
 
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
     await bot.delete_all_custom_rewards(payload.data.broadcaster)
@@ -300,7 +302,7 @@ async def event_eventsub_notification_stream_start(payload: eventsub.Notificatio
 @bot.event()
 async def event_eventsub_notification_stream_end(payload: eventsub.NotificationEvent) -> None:
     """ event triggered when stream goes offline """
-    print(f"Received StreamOfflineData event! [broadcaster.name={payload.data.broadcaster.name}]")
+    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[StreamOffline]{Fore.RED}[EventSub]:{Style.RESET_ALL}")
 
     # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
     await bot.delete_all_custom_rewards(payload.data.broadcaster)

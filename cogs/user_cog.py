@@ -25,7 +25,7 @@ class UserCog(commands.Cog):
             to_shoutout_user = await self.bot._http.get_users(ids=[], logins=['stairsthetrashman'])
             to_shoutout_channel = await self.bot._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
             from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.bot.channel_broadcasters))[0]
-            await self.bot.announce_shoutout(broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
+            await self.bot.announce_shoutout(ctx=None, broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
 
     @commands.command(aliases=['lottie'])
     async def lottiekins(self, ctx: commands.Context):

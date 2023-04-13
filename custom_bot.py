@@ -2,8 +2,9 @@ import json
 import re
 import sqlite3
 import random
-from typing import List
+from typing import List, Optional
 
+import requests
 from colorama import Fore, Back, Style
 
 import twitchio
@@ -301,7 +302,7 @@ class Bot(commands.Bot):
                 print(f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
                       f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
-    async def announce_shoutout(self, broadcaster: PartialUser, channel: any, color: str):
+    async def announce_shoutout(self, ctx: Optional[commands.Context], broadcaster: PartialUser, channel: any, color: str):
         message: list[str] = [f"Please check out "]
         flattering_strings = ["the brilliant", "the amazing", "the outstanding", "the remarkable", "the exceptional",
                               "the impressive", "the phenomenal", "the talented", "the genius", "the masterful"]
@@ -341,13 +342,15 @@ class Bot(commands.Bot):
                                                    moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
 
         except Exception as error:
+            # Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout."
             print(f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
                   f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
-            error_count += 1
 
         if error_count >= 1:
-            await broadcaster.channel.send(''.join(message))
-
+            if ctx is not None:
+                await ctx.send(''.join(message))
+            elif broadcaster is not None and hasattr(broadcaster.channel, 'send'):
+                await broadcaster.channel.send(''.join(message))
 
     """
     BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
@@ -383,34 +386,44 @@ class Bot(commands.Bot):
 
     @commands.command(aliases=['deaths', 'death', 'dead', 'died', 'ded', 'dc'])
     async def death_counter(self, ctx: commands.Context):
-        """ type !death_counter, !ded or !dc appended with a plus (+) or minus (-) to increase/decrease the death counter """
+        """ type !death_counter appended with a plus (+) or minus (-) to increase/decrease the death counter """
         if ctx.channel.name not in self.death_count:
             self.death_count[ctx.channel.name] = 0  # Add key if it doesn't exist
         if str(ctx.message.content).count('reset') >= 1:
             self.death_count[ctx.channel.name] = 0  # Reset key to 0
         else:
-            param: str = str(ctx.message.content).split(maxsplit=1)[1]
-            match = re.match(r"^([+-])(\d+)$", param)
-            if match:
-                sign = match.group(1)
-                num = int(match.group(2))
-                if sign == "+":
-                    self.death_count[ctx.channel.name] += num
-                elif sign == "-":
-                    self.death_count[ctx.channel.name] -= num
-            else:
-                plus_count = str(ctx.message.content).count('+')
-                minus_count = str(ctx.message.content).count('-')
-                self.death_count[ctx.channel.name] += plus_count - minus_count  # key equals the sum of +/- deaths
+            try:
+                param: str = str(ctx.message.content).split(maxsplit=1)[1]
+                match = re.match(r"^([=+-])(\d+)$", param)
+                if match:
+                    sign = match.group(1)
+                    num = int(match.group(2))
+                    if sign == "=":
+                        self.death_count[ctx.channel.name] = num
+                    elif sign == "+":
+                        self.death_count[ctx.channel.name] += num
+                    elif sign == "-":
+                        self.death_count[ctx.channel.name] -= num
+                else:
+                    plus_count = str(ctx.message.content).count('+')
+                    minus_count = str(ctx.message.content).count('-')
+                    self.death_count[ctx.channel.name] += plus_count - minus_count  # key equals the sum of +/- deaths
+            except IndexError:
+                pass
         await ctx.send(f'Deaths: {self.death_count[ctx.channel.name]}')
 
     @commands.command(aliases=['follow'])
     async def follow_channel(self, ctx: commands.Context):
-        param: str = str(ctx.message.content).split(maxsplit=1)[1]
-        bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USERNAME])
-        bot_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
-        to_follow_user: list[twitchio.User] = await self.fetch_users(names=[param])
-        await bot_user[0].follow(userid=to_follow_user[0].id, token=bot_token_result_set['access_token'])
+        # TODO: use a headless browser to follow the channel
+        """ This endpoint is deprecated and will be shutdown on July 28, 2021. Applications that have not accessed
+        this endpoint before June 28, 2021 can no longer call this endpoint. For more information, see
+        https://discuss.dev.twitch.tv/t/deprecation-of-create-and-delete-follows-api-endpoints """
+        # param: str = str(ctx.message.content).split(maxsplit=1)[1]
+        # bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USERNAME])
+        # bot_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
+        # to_follow_user: list[twitchio.User] = await self.fetch_users(names=[param])
+        # await to_follow_user[0].follow(userid=int(bot_user[0].id), token=dict(bot_token_result_set)['access_token'])
+        pass
 
     @commands.command(aliases=['mod'])
     async def mod_bot(self, ctx: commands.Context):
@@ -498,11 +511,15 @@ class Bot(commands.Bot):
     async def bard(self, ctx: commands.Context):
         """ type !bard <query> to ask bard a question """
         param: str = str(ctx.message.content).split(maxsplit=1)[1]
-        chatbot = Chatbot(settings.BARD_SECURE_1PSID)
-        response = chatbot.ask(f"In fewer than 450 characters and in as few sentences as possible. "
-                               f"Preferably reply in a single sentence and without suggesting additional "
-                               f"tips or bullet points. Answer this query: '{param}'.")
-        await ctx.channel.send(f"{response['content'][:500]}")
+        try:
+            chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+            response = chatbot.ask(f"In fewer than 450 characters and in as brief as possible. "
+                                   f"Preferably reply in a single sentence and without suggesting additional "
+                                   f"tips or bullet points. Answer this query: '{param}'.")
+            await ctx.channel.send(f"{response['content'][:500]}")
+        except requests.exceptions.TooManyRedirects or AttributeError as error:
+            print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
+                  f"Error: {error}{Style.RESET_ALL}")
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
@@ -525,7 +542,8 @@ class Bot(commands.Bot):
         """ type !raids @username to print out how many raids you've received from the user """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
         if len(param_username) >= 1:
-            raider_login_result_set: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(), receiver_login=ctx.channel.name)
+            raider_login_result_set: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(),
+                                                                             receiver_login=ctx.channel.name)
             await ctx.send(f"{param_username} has raided the channel {len(raider_login_result_set)} times!")
 
     @commands.command()
@@ -548,4 +566,4 @@ class Bot(commands.Bot):
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
             from_broadcaster: list[User] = await self.fetch_users(names=[ctx.channel.name])
             # from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-            await self.announce_shoutout(broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0], color='blue')
+            await self.announce_shoutout(ctx=ctx, broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0], color='blue')
