@@ -1,7 +1,8 @@
 import asyncio
-from typing import Optional
+from typing import Optional, List
 
 from colorama import Fore, Back, Style
+from twitchio import User
 from twitchio.ext import eventsub, pubsub
 
 from cogs.rce import RCECog
@@ -106,6 +107,10 @@ async def event_channel_join_failure(channel: str):
 async def event_channel_joined(channel):
     print(f"{Fore.RED}Bot successfully joined {Fore.MAGENTA}{channel}{Fore.RED}!{Style.RESET_ALL}")
     print(f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{bot.connected_channels}{Fore.RED}!{Style.RESET_ALL}")
+    # Side effect of joining channel it should start listening to event subscriptions
+    broadcasters: List[User] = await bot.fetch_users(names=[channel.name])
+    await bot.delete_event_subscriptions(broadcasters)
+    await bot.subscribe_channel_events(broadcasters)
 
 
 @bot.event()

@@ -76,6 +76,8 @@ class Bot(commands.Bot):
         await self.psclient.subscribe_topics(topics)
 
     async def __esclient_init__(self) -> None:
+        await self.delete_all_event_subscriptions()
+
         """ start the esclient listening on specified port """
         try:
             self.loop.create_task(self.esclient.listen(port=settings.EVENTSUB_URI_PORT))
@@ -84,11 +86,7 @@ class Bot(commands.Bot):
         except Exception as e:
             print(e.with_traceback(tb=None))
 
-        # TODO: Make subscriptions happen on channel join / remove subs on leave
-
-        await self.delete_event_subscriptions()
-
-        broadcasters: List[User] = await self.fetch_users(names=[settings.BOT_JOIN_CHANNEL])
+    async def subscribe_channel_events(self, broadcasters: List[User]):
         for broadcaster in broadcasters:
             print(f'{Fore.RED}Subscribing to events for '
                   f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
@@ -147,6 +145,34 @@ class Bot(commands.Bot):
                 print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for '
                       f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
+    async def delete_all_event_subscriptions(self):
+        """ before registering new event subscriptions remove old event subs """
+        app_token = self.database.fetch_app_token()[0]['access_token']
+        self.esclient.client._http.token = app_token
+        self.esclient._http.__init__(client=self.esclient, token=app_token)
+        es_subs = await self.esclient._http.get_subscriptions()
+        print(f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}")
+        for es_sub in es_subs:
+            await self.esclient._http.delete_subscription(es_sub)
+            print(f"{Fore.RED}Deleting the event subscription with id: "
+                  f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}")
+
+    async def delete_event_subscriptions(self, broadcasters: List[User]):
+        """ before registering new event subscriptions remove old event subs """
+        app_token = self.database.fetch_app_token()[0]['access_token']
+        self.esclient.client._http.token = app_token
+        self.esclient._http.__init__(client=self.esclient, token=app_token)
+        es_subs = await self.esclient._http.get_subscriptions()
+        print(f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}")
+        for es_sub in es_subs:
+            if ('broadcaster_user_id' in es_sub.condition
+                and int(es_sub.condition['broadcaster_user_id']) == broadcasters[0].id) \
+                    or ('to_broadcaster_user_id' in es_sub.condition
+                        and int(es_sub.condition['to_broadcaster_user_id']) == broadcasters[0].id):
+                await self.esclient._http.delete_subscription(es_sub)
+                print(f"{Fore.RED}Deleting the event subscription with id: "
+                      f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel {Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}")
+
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
         if hasattr(payload.data, 'reciever'):
@@ -196,19 +222,6 @@ class Bot(commands.Bot):
                 await payload.data.broadcaster.create_marker(token=access_token,
                                                              description=event_string)
 
-    async def delete_event_subscriptions(self):
-        """ before registering new event subscriptions remove old event subs """
-        app_token = self.database.fetch_app_token()[0]['access_token']
-        self.esclient.client._http.token = app_token
-        self.esclient._http.__init__(client=self.esclient, token=app_token)
-        es_subs = await self.esclient._http.get_subscriptions()
-        print(f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}")
-        for es_sub in es_subs:
-            await self.esclient._http.delete_subscription(es_sub)
-            print(f"{Fore.RED}Deleting the event subscription with id: "
-                  f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}")
-        print(f"{Fore.RED}Deleted all event subscription(s).{Style.RESET_ALL}")
-
     async def detect_bot_spam(self, message: twitchio.Message) -> bool:
         if str(message.content).count('offer promotion of your channel') >= 1 \
                 or str(message.content).lower().count('viewers, followers, views, chat bots') >= 1 \
@@ -243,6 +256,8 @@ class Bot(commands.Bot):
         # Print the contents of our message to console...
         print(f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}"
               f"{message.content}{Style.RESET_ALL}")
+
+        # TODO respond to @botusername with !bard output
 
         """ Messages that include common bot spammer phrases auto-ban. """
         is_bot = await self.detect_bot_spam(message=message)
@@ -413,6 +428,9 @@ class Bot(commands.Bot):
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
                 and str(settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # keep bot connected to initial channel
             await self.part_channels([param_username])
+            # also remove event subs
+            broadcasters: List[User] = await self.fetch_users(names=[param_username])
+            await self.delete_event_subscriptions(broadcasters=broadcasters)
         print(f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}")
 
     @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
