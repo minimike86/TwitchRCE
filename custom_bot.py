@@ -3,19 +3,19 @@ import re
 import sqlite3
 import random
 from typing import List, Optional
-
 import requests
 from colorama import Fore, Back, Style
+
+from db.database import Database
+import settings
 
 import twitchio
 from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
-from Bard import Chatbot
 from api.twitch.twitch_api_auth import TwitchApiAuth
-from db.database import Database
-import settings
+from Bard import Chatbot
 
 
 class Bot(commands.Bot):
@@ -132,16 +132,20 @@ class Bot(commands.Bot):
             try:
                 """ create new event subscription for channel_stream_start event """
                 await self.esclient.subscribe_channel_stream_start(broadcaster=broadcaster.id)
-                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}'
+                      f'{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
                 """ create new event subscription for channel_stream_end event """
                 await self.esclient.subscribe_channel_stream_end(broadcaster=broadcaster.id)
-                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}'
+                      f'{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
             except twitchio.HTTPException:
-                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
@@ -161,9 +165,34 @@ class Bot(commands.Bot):
 
             # Create the marker
             if hasattr(payload.data, 'reciever'):
-                await payload.data.reciever.create_marker(token=access_token,
-                                                          description=event_string)
+                await payload.data.reciever.create_marker(token=access_token, description=event_string)
             else:
+                # TODO: fix unauth error
+                # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/streams/markers?first=100) [401 Unauthorized]>
+                # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Sun, 16 Apr 2023 22:16:39 GMT', 'X-Served-By': 'cache-bfi-krnt7300109-BFI, cache-lcy-eglc8600041-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681683399.320199,VS0,VS0,VE148', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
+                # Traceback (most recent call last):
+                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/client.py", line 208, in wrapped
+                #     await func(*args)
+                #   File "/home/kali/PycharmProjects/TwitchRCE/main.py", line 168, in event_eventsub_notification_cheer
+                #     await bot.set_stream_marker(payload=payload, event_string=event_string)
+                #   File "/home/kali/PycharmProjects/TwitchRCE/custom_bot.py", line 167, in set_stream_marker
+                #     await payload.data.broadcaster.create_marker(token=access_token,
+                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/user.py", line 672, in create_marker
+                #     data = await self._http.post_stream_marker(token, user_id=str(self.id), description=description)
+                #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 695, in post_stream_marker
+                #     return await self.request(
+                #            ^^^^^^^^^^^^^^^^^^^
+                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 168, in request
+                #     body, is_text = await self._request(route, path, headers)
+                #                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 218, in _request
+                #     raise errors.Unauthorized("You're not authorized to use this route.")
+                # twitchio.errors.Unauthorized: You're not authorized to use this route.
+                # ========================================================================
+                # Event Error: 'You're not authorized to use this route.'!
+                # Event Data: 'None'!
+                # =======================================================================
                 await payload.data.broadcaster.create_marker(token=access_token,
                                                              description=event_string)
 
@@ -212,7 +241,8 @@ class Bot(commands.Bot):
         if message.echo:
             return
         # Print the contents of our message to console...
-        print(f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}{message.content}{Style.RESET_ALL}")
+        print(f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}"
+              f"{message.content}{Style.RESET_ALL}")
 
         """ Messages that include common bot spammer phrases auto-ban. """
         is_bot = await self.detect_bot_spam(message=message)
@@ -325,6 +355,9 @@ class Bot(commands.Bot):
                                                         color=color)  # blue green orange purple primary
 
         except Exception as error:
+            # TODO: Fix error by refreshing msec_bot token on a 401 Unauthorized
+            # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/chat/announcements?first=100&broadcaster_id=147265258&moderator_id=875992093) [401 Unauthorized]>
+            # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Tue, 18 Apr 2023 01:26:51 GMT', 'X-Served-By': 'cache-bfi-kbfi7400076-BFI, cache-lcy-eglc8600051-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681781211.352693,VS0,VS0,VE150', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
             print(f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
                   f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
             error_count += 1
@@ -342,7 +375,10 @@ class Bot(commands.Bot):
                                                    moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
 
         except Exception as error:
-            # Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout."
+            """ Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout. """
+            # TODO: Fix error by refreshing msec_bot token on a 401 Unauthorized
+            # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/chat/shoutouts?first=100&from_broadcaster_id=147265258&moderator_id=875992093&to_broadcaster_id=37039983) [401 Unauthorized]>
+            # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Tue, 18 Apr 2023 01:26:52 GMT', 'X-Served-By': 'cache-bfi-kbfi7400063-BFI, cache-lcy-eglc8600051-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681781212.889475,VS0,VS0,VE152', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
             print(f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
                   f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
 
@@ -486,6 +522,15 @@ class Bot(commands.Bot):
                 report_output.append(f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report, 'total_votes') else None
                 report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
+
+                if hasattr(domain_report, 'crowdsourced_ai_results'):
+                    chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+                    response = chatbot.ask(f"Reduce this text to only 500 characters: "
+                                           f"```{domain_report.crowdsourced_ai_results[0]['analysis']}```.")
+                    start = response['content'].find('\n\n') + 2
+                    end = response['content'].find('\n\n', start)
+                    await ctx.channel.send(f"{response['content'][start:end][:500]}")
+
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this URL! {error}')
 
@@ -504,6 +549,15 @@ class Bot(commands.Bot):
                 report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(file_report, 'total_votes') else None
                 report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
+
+                if hasattr(file_report, 'crowdsourced_ai_results'):
+                    chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+                    response = chatbot.ask(f"Reduce this text to only 500 characters: "
+                                           f"```{file_report.crowdsourced_ai_results[0]['analysis']}```.")
+                    start = response['content'].find('\n\n') + 2
+                    end = response['content'].find('\n\n', start)
+                    await ctx.channel.send(f"{response['content'][start:end][:500]}")
+
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this hash! {error}')
 

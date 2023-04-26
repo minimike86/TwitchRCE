@@ -251,7 +251,7 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
     """ event triggered when someone raids the channel """
     event_string = f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], " \
                    f"with {payload.data.viewer_count} viewers"
-    print(f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
+    print(f"{Fore.RED}[{payload.data.reciever.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
           f"{event_string}{Style.RESET_ALL}")
 
     # Log the raid occurrence
