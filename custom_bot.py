@@ -13,7 +13,7 @@ import settings
 
 import twitchio
 from twitchio import User, PartialUser, errors
-from twitchio.ext import commands, eventsub, pubsub
+from twitchio.ext import commands, eventsub, pubsub, sounds
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
 from api.twitch.twitch_api_auth import TwitchApiAuth
@@ -32,6 +32,9 @@ class Bot(commands.Bot):
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
 
+        self.music_player = sounds.AudioPlayer(callback=self.music_done)
+        self.sound_player = sounds.AudioPlayer(callback=self.sound_done)
+
         """ load commands from cogs """
         from cogs.rce import RCECog
         self.add_cog(RCECog(self))
@@ -39,6 +42,8 @@ class Bot(commands.Bot):
         self.add_cog(VIPCog(self))
         from cogs.user_cog import UserCog
         self.add_cog(UserCog(self))
+        from cogs.sounds_cog import SoundsCog
+        self.add_cog(SoundsCog(self))
 
         self.death_count = {}
 
@@ -62,6 +67,12 @@ class Bot(commands.Bot):
                         break
             return wrapper
         return decorator
+
+    async def music_done(self):
+        print(f"{Fore.RED}Finished playing youtube song!{Style.RESET_ALL}")
+
+    async def sound_done(self):
+        print(f"{Fore.RED}Finished playing sound clip!{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def update_bot_http_token(self):
