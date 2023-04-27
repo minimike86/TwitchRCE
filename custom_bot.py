@@ -2,10 +2,12 @@ import json
 import re
 import sqlite3
 import random
+from functools import wraps
 from typing import List, Optional
 import requests
 from colorama import Fore, Back, Style
 
+from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from db.database import Database
 import settings
 
@@ -40,11 +42,34 @@ class Bot(commands.Bot):
 
         self.death_count = {}
 
+    def circuit_breaker(max_failures: int, reset_timeout: int):
+        breaker = CircuitBreaker(max_failures=max_failures, reset_timeout=reset_timeout)
+
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(self, *args, **kwargs):
+                while True:
+                    try:
+                        result = await breaker.execute(lambda: func(self, *args, **kwargs))
+                        return result
+                    except twitchio.errors.Unauthorized:
+                        print(f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. Refreshing token.{Style.RESET_ALL}")
+                        await self.validate_token(login=settings.BOT_USERNAME)
+                    except twitchio.errors.HTTPException:
+                        print(f"{Fore.RED}Failed to reach Twitch API{Style.RESET_ALL}")
+                    except CircuitBreakerOpenError:
+                        print(f"{Fore.RED}CircuitBreaker is open. Stopping attempts to call API.{Style.RESET_ALL}")
+                        break
+            return wrapper
+        return decorator
+
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def update_bot_http_token(self):
         """ updates the bots http client token """
         bot_access_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
         self._http.token = bot_access_token_result_set['access_token']
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def __channel_broadcasters_init__(self):
         """ get broadcasters objects for every user_login, you need these to send messages """
         user_login_result_set = self.database.fetch_all_user_logins()
@@ -65,6 +90,7 @@ class Bot(commands.Bot):
             print(f"{Fore.RED}Unauthorized: {error}{Style.RESET_ALL}")
         self.channel_broadcasters = broadcasters
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def __validate__(self, user_token: str):
         validate_result = await self._http.validate(token=user_token)
         print(f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}")
@@ -173,6 +199,7 @@ class Bot(commands.Bot):
                 print(f"{Fore.RED}Deleting the event subscription with id: "
                       f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel {Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}")
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
         if hasattr(payload.data, 'reciever'):
@@ -193,32 +220,6 @@ class Bot(commands.Bot):
             if hasattr(payload.data, 'reciever'):
                 await payload.data.reciever.create_marker(token=access_token, description=event_string)
             else:
-                # TODO: fix unauth error
-                # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/streams/markers?first=100) [401 Unauthorized]>
-                # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Sun, 16 Apr 2023 22:16:39 GMT', 'X-Served-By': 'cache-bfi-krnt7300109-BFI, cache-lcy-eglc8600041-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681683399.320199,VS0,VS0,VE148', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
-                # Traceback (most recent call last):
-                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/client.py", line 208, in wrapped
-                #     await func(*args)
-                #   File "/home/kali/PycharmProjects/TwitchRCE/main.py", line 168, in event_eventsub_notification_cheer
-                #     await bot.set_stream_marker(payload=payload, event_string=event_string)
-                #   File "/home/kali/PycharmProjects/TwitchRCE/custom_bot.py", line 167, in set_stream_marker
-                #     await payload.data.broadcaster.create_marker(token=access_token,
-                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/user.py", line 672, in create_marker
-                #     data = await self._http.post_stream_marker(token, user_id=str(self.id), description=description)
-                #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 695, in post_stream_marker
-                #     return await self.request(
-                #            ^^^^^^^^^^^^^^^^^^^
-                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 168, in request
-                #     body, is_text = await self._request(route, path, headers)
-                #                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                #   File "/usr/local/lib/python3.11/dist-packages/twitchio/http.py", line 218, in _request
-                #     raise errors.Unauthorized("You're not authorized to use this route.")
-                # twitchio.errors.Unauthorized: You're not authorized to use this route.
-                # ========================================================================
-                # Event Error: 'You're not authorized to use this route.'!
-                # Event Data: 'None'!
-                # =======================================================================
                 await payload.data.broadcaster.create_marker(token=access_token,
                                                              description=event_string)
 
@@ -274,6 +275,7 @@ class Bot(commands.Bot):
 
     # check for any user logins and validate their access_tokens.
     # If invalid or missing then generate new tokens
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def validate_token(self, login: str) -> any:
         """
         test a user token and if an invalid prompt ask the user to visit the url to generate a new token
@@ -300,6 +302,7 @@ class Bot(commands.Bot):
             except errors.AuthenticationError:
                 print(f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
@@ -314,6 +317,7 @@ class Bot(commands.Bot):
                                            token=user_token_result_set['access_token'])
             print(f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
         user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
@@ -330,6 +334,7 @@ class Bot(commands.Bot):
                                            token=user_token_result_set['access_token'])
             print(f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
@@ -347,7 +352,9 @@ class Bot(commands.Bot):
                 print(f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
                       f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
-    async def announce_shoutout(self, ctx: Optional[commands.Context], broadcaster: PartialUser, channel: any, color: str):
+    @circuit_breaker(max_failures=3, reset_timeout=10)
+    async def announce_shoutout(self, ctx: Optional[commands.Context],
+                                broadcaster: PartialUser, channel: any, color: str):
         message: list[str] = [f"Please check out "]
         flattering_strings = ["the brilliant", "the amazing", "the outstanding", "the remarkable", "the exceptional",
                               "the impressive", "the phenomenal", "the talented", "the genius", "the masterful"]
@@ -370,12 +377,10 @@ class Bot(commands.Bot):
                                                         color=color)  # blue green orange purple primary
 
         except Exception as error:
-            # TODO: Fix error by refreshing msec_bot token on a 401 Unauthorized
-            # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/chat/announcements?first=100&broadcaster_id=147265258&moderator_id=875992093) [401 Unauthorized]>
-            # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Tue, 18 Apr 2023 01:26:51 GMT', 'X-Served-By': 'cache-bfi-kbfi7400076-BFI, cache-lcy-eglc8600051-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681781211.352693,VS0,VS0,VE150', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
             print(f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
                   f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
             error_count += 1
+            raise
 
         try:
             if 'access_token' in dict(moderator_result_set[0]).keys():
@@ -391,11 +396,9 @@ class Bot(commands.Bot):
 
         except Exception as error:
             """ Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout. """
-            # TODO: Fix error by refreshing msec_bot token on a 401 Unauthorized
-            # Unauthorized {'error': 'Unauthorized', 'status': 401, 'message': 'Invalid OAuth token'} <ClientResponse(https://api.twitch.tv/helix/chat/shoutouts?first=100&from_broadcaster_id=147265258&moderator_id=875992093&to_broadcaster_id=37039983) [401 Unauthorized]>
-            # <CIMultiDictProxy('Connection': 'keep-alive', 'Content-Length': '69', 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Timing-Allow-Origin': 'https://www.twitch.tv', 'Date': 'Tue, 18 Apr 2023 01:26:52 GMT', 'X-Served-By': 'cache-bfi-kbfi7400063-BFI, cache-lcy-eglc8600051-LCY', 'X-Cache': 'MISS, MISS', 'X-Cache-Hits': '0, 0', 'X-Timer': 'S1681781212.889475,VS0,VS0,VE152', 'Vary': 'Accept-Encoding', 'Strict-Transport-Security': 'max-age=300')>
             print(f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
                   f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
+            raise
 
         if error_count >= 1:
             if ctx is not None:
@@ -480,6 +483,7 @@ class Bot(commands.Bot):
         pass
 
     @commands.command(aliases=['mod'])
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def mod_bot(self, ctx: commands.Context):
         user_token_result_set = self.database.fetch_user_access_token(broadcaster_login=ctx.channel.name)
         from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
@@ -488,6 +492,7 @@ class Bot(commands.Bot):
                                                      user_id=to_moderator_user[0]['id'])
 
     @commands.command()
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_channel_subs(self, ctx: commands.Context):
         user_result_set = self.database.fetch_user(broadcaster_login=ctx.channel.name)
         subs = await self._http.get_channel_subscriptions(token=user_result_set[0]['access_token'],
@@ -630,6 +635,7 @@ class Bot(commands.Bot):
             await self.add_vip_auto_redemption_reward(broadcaster)
 
     @commands.command(aliases=['so'])
+    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def shoutout(self, ctx: commands.Context):
         """ type !shoutout <@username> to shout out a viewers channel """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
