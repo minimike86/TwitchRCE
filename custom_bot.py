@@ -47,6 +47,7 @@ class Bot(commands.Bot):
 
         self.death_count = {}
 
+    @staticmethod
     def circuit_breaker(max_failures: int, reset_timeout: int):
         breaker = CircuitBreaker(max_failures=max_failures, reset_timeout=reset_timeout)
 
@@ -68,9 +69,11 @@ class Bot(commands.Bot):
             return wrapper
         return decorator
 
-    async def music_done(self):
+    @staticmethod
+    async def music_done():
         print(f"{Fore.RED}Finished playing youtube song!{Style.RESET_ALL}")
 
+    @staticmethod
     async def sound_done(self):
         print(f"{Fore.RED}Finished playing sound clip!{Style.RESET_ALL}")
 
