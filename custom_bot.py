@@ -9,11 +9,15 @@ from colorama import Fore, Back, Style
 
 from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from db.database import Database
+from cogs.user_cog import UserCog
+from cogs.sounds_cog import SoundsCog
 import settings
 
 import twitchio
 from twitchio import User, PartialUser, errors
 from twitchio.ext import commands, eventsub, pubsub, sounds
+
+import sounddevice as sd
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
 from api.twitch.twitch_api_auth import TwitchApiAuth
@@ -32,20 +36,18 @@ class Bot(commands.Bot):
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
 
-        self.music_player = sounds.AudioPlayer(callback=self.music_done)
-        self.sound_player = sounds.AudioPlayer(callback=self.sound_done)
+        self.yt_player = sounds.AudioPlayer(callback=self.music_done)
+        self.sd = sd
+
+        # TODO: Make persistent
+        self.death_count = {}
 
         """ load commands from cogs """
         from cogs.rce import RCECog
         self.add_cog(RCECog(self))
+
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
-        from cogs.user_cog import UserCog
-        self.add_cog(UserCog(self))
-        from cogs.sounds_cog import SoundsCog
-        self.add_cog(SoundsCog(self))
-
-        self.death_count = {}
 
     @staticmethod
     def circuit_breaker(max_failures: int, reset_timeout: int):
@@ -72,10 +74,6 @@ class Bot(commands.Bot):
     @staticmethod
     async def music_done():
         print(f"{Fore.RED}Finished playing youtube song!{Style.RESET_ALL}")
-
-    @staticmethod
-    async def sound_done(self):
-        print(f"{Fore.RED}Finished playing sound clip!{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def update_bot_http_token(self):
@@ -262,7 +260,12 @@ class Bot(commands.Bot):
                       f"as bot user: {Fore.MAGENTA}{self.nick}{Fore.BLUE} "
                       f"({Fore.MAGENTA}ID: {self.user_id}{Fore.BLUE})!{Style.RESET_ALL}")
                 # uncomment below to say in chat when the bot joins
-                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: {self.nick} (ID: {self.user_id})')
+                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user:
+                #                      {self.nick} (ID: {self.user_id})')
+
+            # By default turn on the sound and user commands
+            await self.add_cog(SoundsCog(self))
+            await self.add_cog(UserCog(self))
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
@@ -318,15 +321,19 @@ class Bot(commands.Bot):
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
-        """ Adds channel point redemption that immediately closes the last terminal window that was opened without warning """
+        """
+        Adds channel point redemption that immediately closes the last terminal window that was opened without warning
+        """
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
         if channel[0]['game_id'] is not None \
-                and int(channel[0]['game_id']) in [509670, 1469308723]:  # Science & Technology, Software and Game Development
+                and int(channel[0]['game_id']) in [509670, 1469308723]:
+            # 509670 = Science & Technology, 1469308723 = Software and Game Dev """
             user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
                                            cost=6666,
-                                           prompt="Immediately closes the last terminal window that was opened without warning!",
+                                           prompt="Immediately closes the last terminal window "
+                                                  "that was opened without warning!",
                                            global_cooldown=5 * 60,
                                            token=user_token_result_set['access_token'])
             print(f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
@@ -366,7 +373,6 @@ class Bot(commands.Bot):
                 print(f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
                       f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def announce_shoutout(self, ctx: Optional[commands.Context],
                                 broadcaster: PartialUser, channel: any, color: str):
         message: list[str] = [f"Please check out "]
@@ -382,13 +388,12 @@ class Bot(commands.Bot):
         error_count = 0
         try:
             if 'access_token' in dict(moderator_result_set[0]).keys():
-                """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
-                await self._http.post_chat_announcement(token=dict(moderator_result_set[0])['access_token'],
-                                                        broadcaster_id=broadcaster.id,
-                                                        message=''.join(message),
-                                                        moderator_id=dict(moderator_result_set[0])['broadcaster_id'],
-                                                        # Moderator ID must match the user ID in the user access token.
-                                                        color=color)  # blue green orange purple primary
+                await self.post_chat_announcement(token=dict(moderator_result_set[0])['access_token'],
+                                                  broadcaster_id=broadcaster.id,
+                                                  message=''.join(message),
+                                                  moderator_id=dict(moderator_result_set[0])['broadcaster_id'],
+                                                  # Moderator ID must match the user ID in the user access token.
+                                                  color=color)
 
         except Exception as error:
             print(f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
@@ -404,9 +409,10 @@ class Bot(commands.Bot):
                     streams = await self._http.get_streams(user_ids=[broadcaster.id])
                     if len(streams) >= 1 and streams[0]['type'] == 'live':
                         # Moderator ID must match the user ID in the user access token.
-                        await broadcaster.shoutout(token=dict(moderator_result_set[0])['access_token'],
-                                                   to_broadcaster_id=channel['broadcaster_id'],
-                                                   moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
+                        await self.broadcaster_shoutout(broadcaster=broadcaster,
+                                                        token=dict(moderator_result_set[0])['access_token'],
+                                                        to_broadcaster_id=channel['broadcaster_id'],
+                                                        moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
 
         except Exception as error:
             """ Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout. """
@@ -420,6 +426,41 @@ class Bot(commands.Bot):
             elif broadcaster is not None and hasattr(broadcaster.channel, 'send'):
                 await broadcaster.channel.send(''.join(message))
 
+    @circuit_breaker(max_failures=3, reset_timeout=10)
+    async def post_chat_announcement(self, token: str, broadcaster_id: str, message: str, moderator_id: str, color: str):
+        """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
+        await self._http.post_chat_announcement(token=token,
+                                                broadcaster_id=broadcaster_id,
+                                                message=message,
+                                                moderator_id=moderator_id,
+                                                color=color)
+
+    @circuit_breaker(max_failures=3, reset_timeout=10)
+    async def broadcaster_shoutout(self, broadcaster: PartialUser | User, token: str, to_broadcaster_id: int, moderator_id: int):
+        await broadcaster.shoutout(token=token,
+                                   to_broadcaster_id=to_broadcaster_id,
+                                   moderator_id=moderator_id)
+
+    """
+    COG COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
+    """
+
+    @commands.command(aliases=['enablesounds'])
+    async def soundson(self, ctx: commands.Context):
+        self.add_cog(SoundsCog(self))
+
+    @commands.command(aliases=['disablesounds'])
+    async def soundsoff(self, ctx: commands.Context):
+        self.remove_cog(SoundsCog(self).name)
+
+    @commands.command(aliases=['enableusercommands'])
+    async def usercommandson(self, ctx: commands.Context):
+        self.add_cog(UserCog(self))
+
+    @commands.command(aliases=['disableusercommands'])
+    async def usercommandsoff(self, ctx: commands.Context):
+        self.remove_cog(UserCog(self).name)
+
     """
     BOT COMMANDS BELOW ↓ ↓ ↓ ↓ ↓
     """
@@ -428,6 +469,10 @@ class Bot(commands.Bot):
     async def hello(self, ctx: commands.Context):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
+
+    @commands.command()
+    async def stopsong(self, ctx: commands.Context):
+        self.yt_player.stop()
 
     @commands.command()
     async def join(self, ctx: commands.Context):
@@ -649,7 +694,6 @@ class Bot(commands.Bot):
             await self.add_vip_auto_redemption_reward(broadcaster)
 
     @commands.command(aliases=['so'])
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def shoutout(self, ctx: commands.Context):
         """ type !shoutout <@username> to shout out a viewers channel """
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
