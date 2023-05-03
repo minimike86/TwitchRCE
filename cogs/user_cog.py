@@ -2,6 +2,8 @@ import twitchio
 from twitchio import PartialUser
 from twitchio.ext import commands, sounds
 
+import soundfile as sf
+
 import custom_bot
 
 
@@ -16,29 +18,31 @@ class UserCog(commands.Cog):
             return
         # print('RCECog: ', message.author.name, message.content)
 
-    @commands.command(aliases=['ohlook'])
+    @commands.command(aliases=['stairs1', 'ohlook'])
     async def stairsthetrashman1(self, ctx: commands.Context):
         """ type !stairsthetrashman or !ohlook """
         if ctx.author.display_name.lower() in ['stairsthetrashman', 'msec']:
-            await ctx.send(f'Oh look, it\'s the bitch!')
-            to_shoutout_user = await self.bot._http.get_users(ids=[], logins=['stairsthetrashman'])
-            to_shoutout_channel = await self.bot._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
-            from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.bot.channel_broadcasters))[0]
-            await self.bot.announce_shoutout(ctx=None, broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
-            sound = sounds.Sound(source='/home/kali/Music/ohlook.mp3')
-            self.bot.player.play(sound)
+            # to_shoutout_user = await self.bot._http.get_users(ids=[], logins=['stairsthetrashman'])
+            # to_shoutout_channel = await self.bot._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
+            # from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.bot.channel_broadcasters))[0]
+            # await self.bot.announce_shoutout(ctx=None, broadcaster=from_broadcaster, channel=to_shoutout_channel[0], color='blue')
+            sound_file = '/home/kali/Music/ohlook.mp3'
+            data, samplerate = sf.read(sound_file)
+            self.bot.sd.play(data, samplerate)
 
-    @commands.command(aliases=['because'])
+    @commands.command(aliases=['stairs2', 'because'])
     async def stairsthetrashman2(self, ctx: commands.Context):
         if ctx.author.display_name.lower() in ['stairsthetrashman', 'msec']:
-            sound = sounds.Sound(source='/home/kali/Music/Because_Im_mexican.mp3')
-            self.bot.player.play(sound)
+            sound_file = '/home/kali/Music/Because_Im_mexican.mp3'
+            data, samplerate = sf.read(sound_file)
+            self.bot.sd.play(data, samplerate)
 
-    @commands.command(aliases=['sonofagun'])
+    @commands.command(aliases=['stairs3', 'sonofagun'])
     async def stairsthetrashman3(self, ctx: commands.Context):
         if ctx.author.display_name.lower() in ['stairsthetrashman', 'msec']:
-            sound = sounds.Sound(source='/home/kali/Music/yousonofagun.mp3')
-            self.bot.player.play(sound)
+            sound_file = '/home/kali/Music/yousonofagun.mp3'
+            data, samplerate = sf.read(sound_file)
+            self.bot.sd.play(data, samplerate)
 
     @commands.command(aliases=['lottie'])
     async def lottiekins(self, ctx: commands.Context):
