@@ -9,8 +9,6 @@ from colorama import Fore, Back, Style
 
 from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from db.database import Database
-from cogs.user_cog import UserCog
-from cogs.sounds_cog import SoundsCog
 import settings
 
 import twitchio
@@ -264,7 +262,9 @@ class Bot(commands.Bot):
                 #                      {self.nick} (ID: {self.user_id})')
 
             # By default turn on the sound and user commands
+            from cogs.sounds_cog import SoundsCog
             await self.add_cog(SoundsCog(self))
+            from cogs.user_cog import UserCog
             await self.add_cog(UserCog(self))
 
     async def event_message(self, message: twitchio.Message):
@@ -447,18 +447,22 @@ class Bot(commands.Bot):
 
     @commands.command(aliases=['enablesounds'])
     async def soundson(self, ctx: commands.Context):
+        from cogs.sounds_cog import SoundsCog
         self.add_cog(SoundsCog(self))
 
     @commands.command(aliases=['disablesounds'])
     async def soundsoff(self, ctx: commands.Context):
+        from cogs.sounds_cog import SoundsCog
         self.remove_cog(SoundsCog(self).name)
 
     @commands.command(aliases=['enableusercommands'])
     async def usercommandson(self, ctx: commands.Context):
+        from cogs.user_cog import UserCog
         self.add_cog(UserCog(self))
 
     @commands.command(aliases=['disableusercommands'])
     async def usercommandsoff(self, ctx: commands.Context):
+        from cogs.user_cog import UserCog
         self.remove_cog(UserCog(self).name)
 
     """
