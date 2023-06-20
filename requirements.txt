@@ -11,11 +11,12 @@ pyngrok~=5.2.1
 python-decouple==3.8
 PyYAML==6.0
 twitchio~=2.6.0
+git+https://github.com/TwitchIO/TwitchIO.git@master#egg=twitchio
 typing_extensions==4.5.0
 yarl==1.8.2
 vt-py==0.17.5
 GoogleBard==0.0.6.1
 colorama~=0.4.6
-requests~=2.28.2
+requests==2.31.0
 sounddevice~=0.4.6
 soundfile~=0.12.1
