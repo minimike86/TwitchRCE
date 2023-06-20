@@ -62,10 +62,9 @@ async def ngrok_start() -> (str, str):
 auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
 
 # fetch bot app token
-app_access_token_result_set = db.fetch_app_token()
-app_access_token = [row['access_token'] for row in app_access_token_result_set][0]
-if len(app_access_token_result_set) < 1:
-    app_access_token = loop.run_until_complete(get_app_token())
+# app_access_token_result_set = db.fetch_app_token()
+# app_access_token = [row['access_token'] for row in app_access_token_result_set][0]
+app_access_token = loop.run_until_complete(get_app_token())
 
 # fetch bot user token (refresh it if needed)
 bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
