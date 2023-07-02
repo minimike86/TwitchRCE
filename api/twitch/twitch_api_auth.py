@@ -39,10 +39,10 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(f"Failed to get app access token.")
+            print(f"{Fore.RED}Failed to get app access token.{Style.RESET_ALL}")
             exit(0)
         if status == 200:
-            print(f"Generated app access token: {json.dumps(data)}.")
+            print(f"{Fore.GREEN}Generated new app access token!{Style.RESET_ALL}")  # : {json.dumps(data)}.")
             return data
 
     async def obtain_access_token(self, code: str, redirect_uri: str):
