@@ -657,13 +657,15 @@ class Bot(commands.Bot):
         """ type !bard <query> to ask bard a question """
         param: str = str(ctx.message.content).split(maxsplit=1)[1]
         try:
-            response = self.chatbot.ask(f"The response MUST NOT suggest tips. "
+            response = self.chatbot.ask(f"The response MUST be as brief as possible. "
+                                        f"The response MUST be fewer than 450 characters. "
+                                        f"The response MUST NOT be longer than 450 characters. "
+                                        f"The response MUST NOT suggest tips. "
                                         f"The response MUST NOT include numbered lists. "
                                         f"The response MUST NOT include bullet points. "
                                         f"The response MUST NOT include explanations. "
                                         f"The response MUST NOT include code snippets. "
                                         f"The response MUST NOT begin with 'Sure, here' just answer the question. "
-                                        f"The response MUST be fewer than 450 characters. "
                                         f"Question to answer: '''{param}'''")
             await ctx.channel.send(f"{response['content'][:500]}")
         except RuntimeError or RuntimeWarning as error:
