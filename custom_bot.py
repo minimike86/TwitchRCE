@@ -19,12 +19,15 @@ import sounddevice as sd
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
 from api.twitch.twitch_api_auth import TwitchApiAuth
-from Bard import Chatbot
+from Bard import Chatbot, AsyncChatbot
 
 
 class Bot(commands.Bot):
     """ Custom twitchio bot class """
-    def __init__(self, user_token: str, initial_channels: list[str], eventsub_public_url: str, database: Database):
+    def __init__(self, user_token: str,
+                 initial_channels: list[str],
+                 eventsub_public_url: str,
+                 database: Database):
         super().__init__(token=user_token,
                          prefix='!',
                          initial_channels=initial_channels)
@@ -33,6 +36,8 @@ class Bot(commands.Bot):
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
+
+        self.chatbot = Chatbot(settings.BARD_SECURE_1PSID)
 
         self.yt_player = sounds.AudioPlayer(callback=self.music_done)
         self.sd = sd
@@ -261,11 +266,11 @@ class Bot(commands.Bot):
                 # await channel.send(f'Logged into channel(s): {channel.name}, as bot user:
                 #                      {self.nick} (ID: {self.user_id})')
 
-            # By default turn on the sound and user commands
+            # By default, turn on the sound and user commands
             from cogs.sounds_cog import SoundsCog
-            await self.add_cog(SoundsCog(self))
+            self.add_cog(SoundsCog(self))
             from cogs.user_cog import UserCog
-            await self.add_cog(UserCog(self))
+            self.add_cog(UserCog(self))
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
@@ -652,11 +657,18 @@ class Bot(commands.Bot):
         """ type !bard <query> to ask bard a question """
         param: str = str(ctx.message.content).split(maxsplit=1)[1]
         try:
-            chatbot = Chatbot(settings.BARD_SECURE_1PSID)
-            response = chatbot.ask(f"In fewer than 450 characters and in as brief as possible. "
-                                   f"Preferably reply in a single sentence and without suggesting additional "
-                                   f"tips or bullet points. Answer this query: '{param}'.")
+            response = self.chatbot.ask(f"The response MUST NOT suggest tips. "
+                                        f"The response MUST NOT include numbered lists. "
+                                        f"The response MUST NOT include bullet points. "
+                                        f"The response MUST NOT include explanations. "
+                                        f"The response MUST NOT include code snippets. "
+                                        f"The response MUST NOT begin with 'Sure, here' just answer the question. "
+                                        f"The response MUST be fewer than 450 characters. "
+                                        f"Question to answer: '''{param}'''")
             await ctx.channel.send(f"{response['content'][:500]}")
+        except RuntimeError or RuntimeWarning as error:
+            print(f"{Fore.RED}This event loop is already running! "
+                  f"Error: {error}{Style.RESET_ALL}")
         except requests.exceptions.TooManyRedirects or AttributeError as error:
             print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
                   f"Error: {error}{Style.RESET_ALL}")
