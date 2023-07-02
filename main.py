@@ -15,6 +15,9 @@ from api.twitch.twitch_api_auth import TwitchApiAuth
 from ngrok.ngrok import NgrokClient
 import settings
 
+import nest_asyncio
+nest_asyncio.apply()
+
 
 print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
 
@@ -33,7 +36,7 @@ async def get_app_token() -> str:
     """ Uses the bots' client id and secret to generate a new application token via client credentials grant flow """
     client_creds_grant_flow = await twitch_api_auth_http.client_credentials_grant_flow()
     db.insert_app_data(client_creds_grant_flow['access_token'], client_creds_grant_flow['expires_in'], client_creds_grant_flow['token_type'])
-    print(f"{Fore.RED}Updated App Token!{Style.RESET_ALL}")
+    print(f"{Fore.RED}Updated {Fore.MAGENTA}app access token{Fore.RED}!{Style.RESET_ALL}")
     return client_creds_grant_flow['access_token']
 
 
