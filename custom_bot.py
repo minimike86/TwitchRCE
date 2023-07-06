@@ -5,7 +5,7 @@ import random
 from functools import wraps
 from typing import List, Optional
 import requests
-from colorama import Fore, Back, Style
+from colorama import Fore, Style
 
 from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from db.database import Database
@@ -19,7 +19,9 @@ import sounddevice as sd
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
 from api.twitch.twitch_api_auth import TwitchApiAuth
-from Bard import Chatbot, AsyncChatbot
+from Bard import Chatbot
+
+from ngrok.ngrok import NgrokClient
 
 
 class Bot(commands.Bot):
@@ -27,10 +29,12 @@ class Bot(commands.Bot):
     def __init__(self, user_token: str,
                  initial_channels: list[str],
                  eventsub_public_url: str,
+                 ngrok_client: NgrokClient,
                  database: Database):
         super().__init__(token=user_token,
                          prefix='!',
                          initial_channels=initial_channels)
+        self.ngrok_client = None
         self.database = database
         self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,

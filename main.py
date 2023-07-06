@@ -1,10 +1,12 @@
 import asyncio
+import socket
 from typing import Optional, List
 
-from colorama import Fore, Back, Style
+from colorama import Fore, Style
 from twitchio import User
 from twitchio.ext import eventsub, pubsub
 
+from auth.threading_tcp_server_with_stop import ThreadingTCPServerWithStop, CodeHandler
 from cogs.rce import RCECog
 from cogs.vip import VIPCog
 from custom_bot import Bot
@@ -65,31 +67,59 @@ async def ngrok_start() -> (str, str):
 auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
 
 # fetch bot app token
-# app_access_token_result_set = db.fetch_app_token()
-# app_access_token = [row['access_token'] for row in app_access_token_result_set][0]
 app_access_token = loop.run_until_complete(get_app_token())
 
 # fetch bot user token (refresh it if needed)
-bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
-is_valid = loop.run_until_complete(check_valid_token(user=bot_user_result_set))
+bot_user_result_set = None
+try:
+    bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
+    loop.run_until_complete(check_valid_token(user=bot_user_result_set))
+except IndexError:
+    with ThreadingTCPServerWithStop(("0.0.0.0", 3000), CodeHandler,
+                                    redirect_uri='http://localhost:3000/auth') as tcpserver:
+        print(f"Serving on {tcpserver.server_address}...")
+        tcpserver.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if tcpserver.stop is not True:
+            tcpserver.stop = False
+            tcpserver.serve_forever(poll_interval=0.1)
+        print('Server stopped')
+    bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
+    loop.run_until_complete(check_valid_token(user=bot_user_result_set))
 
 # Create a bot from your twitch client credentials
-bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
 user_access_token = bot_user_result_set['access_token']
 bot = Bot(user_token=user_access_token,
           initial_channels=[settings.BOT_JOIN_CHANNEL],
           eventsub_public_url=eventsub_public_url,
+          ngrok_client=ngrok_client,
           database=db)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
 
-bot.loop.run_until_complete(bot.__channel_broadcasters_init__())  # preload broadcasters objects
+# preload broadcasters objects
+bot.loop.run_until_complete(bot.__channel_broadcasters_init__())
 
-bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
-bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
-                                                  channel_id=int(bot_join_user_result_set['broadcaster_id'])))  # start the pub subscription client
+# start the pub subscription client
+bot_join_user_result_set = None
+try:
+    bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
+    bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
+                                                      channel_id=int(bot_join_user_result_set['broadcaster_id'])))
+except IndexError:
+    with ThreadingTCPServerWithStop(("0.0.0.0", 3000), CodeHandler,
+                                    redirect_uri='http://localhost:3000/auth') as tcpserver:
+        print(f"Serving on {tcpserver.server_address}...")
+        tcpserver.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if tcpserver.stop is not True:
+            tcpserver.stop = False
+            tcpserver.serve_forever(poll_interval=0.1)
+        print('Server stopped')
+    bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
+    bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
+                                                      channel_id=int(bot_join_user_result_set['broadcaster_id'])))
 
-bot.loop.run_until_complete(bot.__esclient_init__())  # start the event subscription client
+# start the event subscription client
+bot.loop.run_until_complete(bot.__esclient_init__())
 
 
 @bot.event()
