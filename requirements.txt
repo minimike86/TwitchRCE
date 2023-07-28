@@ -16,7 +16,7 @@ git+https://github.com/TwitchIO/TwitchIO.git@master#egg=twitchio
 typing_extensions==4.7.0
 yarl==1.9.2
 vt-py==0.17.5
-GoogleBard==1.4.0
+GoogleBard==2.1.0
 colorama~=0.4.6
 requests==2.31.0
 sounddevice~=0.4.6

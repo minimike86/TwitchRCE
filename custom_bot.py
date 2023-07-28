@@ -26,6 +26,7 @@ from ngrok.ngrok import NgrokClient
 
 class Bot(commands.Bot):
     """ Custom twitchio bot class """
+
     def __init__(self, user_token: str,
                  initial_channels: list[str],
                  eventsub_public_url: str,
@@ -41,7 +42,7 @@ class Bot(commands.Bot):
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
 
-        self.chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+        self.chatbot = Chatbot(settings.BARD_SECURE_1PSID, settings.BARD_SECURE_1PSIDTS)
 
         self.yt_player = sounds.AudioPlayer(callback=self.music_done)
         self.sd = sd
@@ -68,14 +69,17 @@ class Bot(commands.Bot):
                         result = await breaker.execute(lambda: func(self, *args, **kwargs))
                         return result
                     except twitchio.errors.Unauthorized:
-                        print(f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. Refreshing token.{Style.RESET_ALL}")
+                        print(
+                            f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. Refreshing token.{Style.RESET_ALL}")
                         await self.validate_token(login=settings.BOT_USERNAME)
-                    except twitchio.errors.HTTPException:
-                        print(f"{Fore.RED}Failed to reach Twitch API{Style.RESET_ALL}")
+                    except twitchio.errors.HTTPException as error:
+                        print(f"{Fore.RED}Failed to reach Twitch API. Error: '{error}'.{Style.RESET_ALL}")
                     except CircuitBreakerOpenError:
                         print(f"{Fore.RED}CircuitBreaker is open. Stopping attempts to call API.{Style.RESET_ALL}")
                         break
+
             return wrapper
+
         return decorator
 
     @staticmethod
@@ -232,7 +236,8 @@ class Bot(commands.Bot):
             if hasattr(payload.data, 'reciever'):
                 access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
             else:
-                access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=payload.data.broadcaster.id)
+                access_token_result_set = self.database.fetch_user_access_token(
+                    broadcaster_id=payload.data.broadcaster.id)
             access_token = [str(token) for token in access_token_result_set][0]
 
             # Create the marker
@@ -310,23 +315,28 @@ class Bot(commands.Bot):
         user_data = [row for row in user_result_set][0]
         try:
             auth_validate = await self._http.validate(token=user_data['access_token'])
-            print(f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
             return auth_validate
         except errors.AuthenticationError:
             # Try to use a refresh token to update the access token
             twitch_api_auth_http = TwitchApiAuth()
             auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user_data['refresh_token'])
-            self.database.insert_user_data(user_data['broadcaster_id'], user_data['broadcaster_login'], user_data['email'],
+            self.database.insert_user_data(user_data['broadcaster_id'], user_data['broadcaster_login'],
+                                           user_data['email'],
                                            auth_result['access_token'], auth_result['expires_in'],
                                            auth_result['refresh_token'], auth_result['scope'])
-            print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
             try:
                 auth_validate = await self._http.validate(token=auth_result['access_token'])
-                print(f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
+                print(
+                    f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
                 await self.update_bot_http_token()
                 return auth_validate
             except errors.AuthenticationError:
-                print(f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
+                print(
+                    f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
@@ -425,8 +435,9 @@ class Bot(commands.Bot):
 
         except Exception as error:
             """ Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout. """
-            print(f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
-                  f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
+                f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}")
             raise
 
         if error_count >= 1:
@@ -436,7 +447,8 @@ class Bot(commands.Bot):
                 await broadcaster.channel.send(''.join(message))
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def post_chat_announcement(self, token: str, broadcaster_id: str, message: str, moderator_id: str, color: str):
+    async def post_chat_announcement(self, token: str, broadcaster_id: str, message: str, moderator_id: str,
+                                     color: str):
         """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
         await self._http.post_chat_announcement(token=token,
                                                 broadcaster_id=broadcaster_id,
@@ -445,7 +457,8 @@ class Bot(commands.Bot):
                                                 color=color)
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def broadcaster_shoutout(self, broadcaster: PartialUser | User, token: str, to_broadcaster_id: int, moderator_id: int):
+    async def broadcaster_shoutout(self, broadcaster: PartialUser | User, token: str, to_broadcaster_id: int,
+                                   moderator_id: int):
         await broadcaster.shoutout(token=token,
                                    to_broadcaster_id=to_broadcaster_id,
                                    moderator_id=moderator_id)
@@ -501,7 +514,8 @@ class Bot(commands.Bot):
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(maxsplit=1)[1])
         # Limit to broadcaster
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
-                and str(settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # keep bot connected to initial channel
+                and str(
+            settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # keep bot connected to initial channel
             await self.part_channels([param_username])
             # also remove event subs
             broadcasters: List[User] = await self.fetch_users(names=[param_username])
@@ -511,7 +525,8 @@ class Bot(commands.Bot):
     @commands.command(aliases=['infosecstreams', 'cyber_streams', 'streams'])
     async def infosec_streams(self, ctx: commands.Context):
         """ type !streams to drop a link to infosecstreams.com """
-        await ctx.send(f'Check out this actively maintained activity-based and auto-sorted list of InfoSec streamers: https://infosecstreams.com')
+        await ctx.send(
+            f'Check out this actively maintained activity-based and auto-sorted list of InfoSec streamers: https://infosecstreams.com')
 
     @commands.command(aliases=['deaths', 'death', 'dead', 'died', 'ded', 'dc'])
     async def death_counter(self, ctx: commands.Context):
@@ -572,7 +587,8 @@ class Bot(commands.Bot):
         self.database.update_all_subs_inactive()
         for sub in subs:
             try:
-                self.database.insert_sub_data(broadcaster_id=sub['broadcaster_id'], broadcaster_login=sub['broadcaster_login'],
+                self.database.insert_sub_data(broadcaster_id=sub['broadcaster_id'],
+                                              broadcaster_login=sub['broadcaster_login'],
                                               broadcaster_name=sub['broadcaster_name'],
                                               gifter_id=sub['gifter_id'], gifter_login=sub['gifter_login'],
                                               gifter_name=sub['gifter_name'], is_gift=sub['is_gift'],
@@ -608,14 +624,24 @@ class Bot(commands.Bot):
                 domain_report = await vt.get_url_report(url=param)
                 report_output: list[str] = ['VirusTotal -> ']
                 report_output.append(f'url: {domain_report.url}, ') if hasattr(domain_report, 'url') else None
-                report_output.append(f'last_final_url: {domain_report.last_final_url}, ') if hasattr(domain_report, 'last_final_url') else None
+                report_output.append(f'last_final_url: {domain_report.last_final_url}, ') if hasattr(domain_report,
+                                                                                                     'last_final_url') else None
                 report_output.append(f'title: {domain_report.title}, ') if hasattr(domain_report, 'title') else None
-                report_output.append(f'first_submission_date: {domain_report.first_submission_date}, ') if hasattr(domain_report, 'first_submission_date') else None
-                report_output.append(f'last_analysis_stats["harmless"]: {domain_report.last_analysis_stats["harmless"]}, ') if hasattr(domain_report, 'last_analysis_stats') else None
-                report_output.append(f'last_analysis_stats["malicious"]: {domain_report.last_analysis_stats["malicious"]}, ') if hasattr(domain_report, 'last_analysis_stats') else None
-                report_output.append(f'total_votes["harmless"]: {domain_report.total_votes["harmless"]}, ') if hasattr(domain_report, 'total_votes') else None
-                report_output.append(f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report, 'total_votes') else None
-                report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report, 'times_submitted') else None
+                report_output.append(f'first_submission_date: {domain_report.first_submission_date}, ') if hasattr(
+                    domain_report, 'first_submission_date') else None
+                report_output.append(
+                    f'last_analysis_stats["harmless"]: {domain_report.last_analysis_stats["harmless"]}, ') if hasattr(
+                    domain_report, 'last_analysis_stats') else None
+                report_output.append(
+                    f'last_analysis_stats["malicious"]: {domain_report.last_analysis_stats["malicious"]}, ') if hasattr(
+                    domain_report, 'last_analysis_stats') else None
+                report_output.append(f'total_votes["harmless"]: {domain_report.total_votes["harmless"]}, ') if hasattr(
+                    domain_report, 'total_votes') else None
+                report_output.append(
+                    f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report,
+                                                                                                        'total_votes') else None
+                report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report,
+                                                                                                      'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
                 if hasattr(domain_report, 'crowdsourced_ai_results'):
@@ -634,15 +660,26 @@ class Bot(commands.Bot):
             try:
                 file_report = await vt.get_file_report(hash_id=param)
                 report_output: list[str] = ['VirusTotal -> ']
-                report_output.append(f'meaningful_name: {file_report.meaningful_name}, ') if hasattr(file_report, 'meaningful_name') else None
+                report_output.append(f'meaningful_name: {file_report.meaningful_name}, ') if hasattr(file_report,
+                                                                                                     'meaningful_name') else None
                 report_output.append(f'magic: {file_report.magic}, ') if hasattr(file_report, 'magic') else None
-                report_output.append(f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, ') if hasattr(file_report, 'popular_threat_classification') else None
-                report_output.append(f'first_seen_itw_date: {file_report.first_seen_itw_date}, ') if hasattr(file_report, 'first_seen_itw_date') else None
-                report_output.append(f'last_analysis_stats["harmless"]: {file_report.last_analysis_stats["harmless"]}, ') if hasattr(file_report, 'last_analysis_stats') else None
-                report_output.append(f'last_analysis_stats["malicious"]: {file_report.last_analysis_stats["malicious"]}, ') if hasattr(file_report, 'last_analysis_stats') else None
-                report_output.append(f'total_votes["harmless"]: {file_report.total_votes["harmless"]}, ') if hasattr(file_report, 'total_votes') else None
-                report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(file_report, 'total_votes') else None
-                report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report, 'times_submitted') else None
+                report_output.append(
+                    f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, ') if hasattr(
+                    file_report, 'popular_threat_classification') else None
+                report_output.append(f'first_seen_itw_date: {file_report.first_seen_itw_date}, ') if hasattr(
+                    file_report, 'first_seen_itw_date') else None
+                report_output.append(
+                    f'last_analysis_stats["harmless"]: {file_report.last_analysis_stats["harmless"]}, ') if hasattr(
+                    file_report, 'last_analysis_stats') else None
+                report_output.append(
+                    f'last_analysis_stats["malicious"]: {file_report.last_analysis_stats["malicious"]}, ') if hasattr(
+                    file_report, 'last_analysis_stats') else None
+                report_output.append(f'total_votes["harmless"]: {file_report.total_votes["harmless"]}, ') if hasattr(
+                    file_report, 'total_votes') else None
+                report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(
+                    file_report, 'total_votes') else None
+                report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report,
+                                                                                                    'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
                 if hasattr(file_report, 'crowdsourced_ai_results'):
@@ -661,20 +698,59 @@ class Bot(commands.Bot):
         """ type !bard <query> to ask bard a question """
         param: str = str(ctx.message.content).split(maxsplit=1)[1]
         try:
-            response = self.chatbot.ask(f"The response MUST be as brief as possible. "
-                                        f"The response MUST be fewer than 450 characters. "
-                                        f"The response MUST NOT be longer than 450 characters. "
-                                        f"The response MUST NOT suggest tips. "
-                                        f"The response MUST NOT include numbered lists. "
-                                        f"The response MUST NOT include bullet points. "
-                                        f"The response MUST NOT include explanations. "
-                                        f"The response MUST NOT include code snippets. "
-                                        f"The response MUST NOT begin with 'Sure, here' just answer the question. "
-                                        f"Question to answer: '''{param}'''")
-            await ctx.channel.send(f"{response['content'][:500]}")
+            attempts = 0
+            while True:
+                if attempts == 0:
+                    response = self.chatbot.ask(f"{param}")
+                else:
+                    response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 450 characters:")
+
+                # trim the bard prefix in the responses
+                for ch_index, choice in enumerate(response['choices']):
+                    for ct_index, content in enumerate(choice['content']):
+                        # determine split logic
+                        if len(content.split('```')) > 1 and content.split('```')[0][0:5] == 'Sure,':
+                            response['choices'][ch_index]['content'][ct_index] = content.split('```')[1]
+                        elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:5] == 'Sure,':
+                            response['choices'][ch_index]['content'][ct_index] = content.split('\n\n\n')[1]
+                        elif re.search(r'^Sure[,.].*:', content):
+                            content = re.sub(r'(?!\s)\.(?!\s)(?!$).*$', '', content)
+                            response['choices'][ch_index]['content'][ct_index] = re.sub(r'^Sure[,.].*:', '', content)
+
+                # Check if any response choices are fewer than 450 characters
+                length_array = [len(d['content'][0]) for d in response['choices']]
+
+                # Find the index of the first value in length_array that is lower than 450
+                index_of_value_lower_than_450 = None
+                for index, length in enumerate(length_array):
+                    if length < 450:
+                        index_of_value_lower_than_450 = index
+                        break
+
+                # Check if any value is found and print the result
+                if index_of_value_lower_than_450 is not None:
+                    print(
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} The first value lower than 450 is at index: {index_of_value_lower_than_450}{Style.RESET_ALL}")
+                    break
+                else:
+                    print(
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} No value lower than 450 found in length_array.{Style.RESET_ALL}")
+                attempts += 1
+
+            print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
+                  f"{Fore.YELLOW}{response}{Style.RESET_ALL}")
+
+            await ctx.channel.send(
+                f"{response['choices'][index_of_value_lower_than_450]['content'][0][:500]}")
+
+        except KeyError as error:
+            print(f"{Fore.RED}BARD response is empty! "
+                  f"Error: {error}{Style.RESET_ALL}")
+
         except RuntimeError or RuntimeWarning as error:
             print(f"{Fore.RED}This event loop is already running! "
                   f"Error: {error}{Style.RESET_ALL}")
+
         except requests.exceptions.TooManyRedirects or AttributeError as error:
             print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
                   f"Error: {error}{Style.RESET_ALL}")
@@ -724,4 +800,5 @@ class Bot(commands.Bot):
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
             from_broadcaster: list[User] = await self.fetch_users(names=[ctx.channel.name])
             # from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-            await self.announce_shoutout(ctx=ctx, broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0], color='blue')
+            await self.announce_shoutout(ctx=ctx, broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0],
+                                         color='blue')
