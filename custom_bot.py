@@ -289,8 +289,6 @@ class Bot(commands.Bot):
         print(f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}"
               f"{message.content}{Style.RESET_ALL}")
 
-        # TODO respond to @botusername with !bard output
-
         """ Messages that include common bot spammer phrases auto-ban. """
         is_bot = await self.detect_bot_spam(message=message)
         if is_bot:
@@ -300,6 +298,13 @@ class Bot(commands.Bot):
             await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id,
                                 user_id=message.author.id, reason='Banned for posting known bot spam/scam messages '
                                                                   '(eg: buy follows at dogehype)')
+
+        elif re.search(r'^@msec_bot', message.content):
+            """ swap any @msec_bot prefix messages to go to bard """
+
+            message.content = re.sub(r'^@msec_bot\s', '!bard ', message.content)
+            await self.handle_commands(message)
+
         else:
             """ Handle commands overriding the default `event_message`. """
             await self.handle_commands(message)
@@ -703,45 +708,54 @@ class Bot(commands.Bot):
                 if attempts == 0:
                     response = self.chatbot.ask(f"{param}")
                 else:
-                    response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 450 characters:")
+                    response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 500 characters:")
 
                 # trim the bard prefix in the responses
                 for ch_index, choice in enumerate(response['choices']):
                     for ct_index, content in enumerate(choice['content']):
+                        pattern_prefix = r'^Sure[,.].*:'
+                        pattern_suffix = r'(?!\s)[^A-Za-z0-9\'\"](?!\s)(?!$).*$'
                         # determine split logic
-                        if len(content.split('```')) > 1 and content.split('```')[0][0:5] == 'Sure,':
-                            response['choices'][ch_index]['content'][ct_index] = content.split('```')[1]
-                        elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:5] == 'Sure,':
-                            response['choices'][ch_index]['content'][ct_index] = content.split('\n\n\n')[1]
-                        elif re.search(r'^Sure[,.].*:', content):
-                            content = re.sub(r'(?!\s)\.(?!\s)(?!$).*$', '', content)
-                            response['choices'][ch_index]['content'][ct_index] = re.sub(r'^Sure[,.].*:', '', content)
+                        if len(content.split('```')) > 1 and content.split('```')[0][0:4] == 'Sure':
+                            content = content.split('```')[1]
+                        elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:4] == 'Sure':
+                            content = content.split('\n\n\n')[1]
 
-                # Check if any response choices are fewer than 450 characters
+                        if len(content.split('\r\n\r\n')) > 1:
+                            content = content.split('\r\n\r\n')[0]
+
+                        if re.search(pattern_suffix, content):
+                            content = re.sub(pattern_suffix, '', content) + re.findall(pattern_suffix, content)[0]
+                        if re.search(pattern_prefix, content):
+                            content = re.sub(pattern_prefix, '', content)
+
+                        response['choices'][ch_index]['content'][ct_index] = content
+
+                # Check if any response choices are fewer than 500 characters
                 length_array = [len(d['content'][0]) for d in response['choices']]
 
-                # Find the index of the first value in length_array that is lower than 450
-                index_of_value_lower_than_450 = None
+                # Find the index of the first value in length_array that is lower than 500
+                index_of_value_lower_than_500 = None
                 for index, length in enumerate(length_array):
-                    if length < 450:
-                        index_of_value_lower_than_450 = index
+                    if length < 500:
+                        index_of_value_lower_than_500 = index
                         break
 
                 # Check if any value is found and print the result
-                if index_of_value_lower_than_450 is not None:
+                if index_of_value_lower_than_500 is not None:
                     print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} The first value lower than 450 is at index: {index_of_value_lower_than_450}{Style.RESET_ALL}")
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} The first value lower than 500 is at index: {index_of_value_lower_than_500}{Style.RESET_ALL}")
                     break
                 else:
                     print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} No value lower than 450 found in length_array.{Style.RESET_ALL}")
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
                 attempts += 1
 
             print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
                   f"{Fore.YELLOW}{response}{Style.RESET_ALL}")
 
             await ctx.channel.send(
-                f"{response['choices'][index_of_value_lower_than_450]['content'][0][:500]}")
+                f"{response['choices'][index_of_value_lower_than_500]['content'][0][:500]}")
 
         except KeyError as error:
             print(f"{Fore.RED}BARD response is empty! "
