@@ -59,12 +59,13 @@ async def refresh_user_token(user: any) -> str:
     return auth_result['access_token']
 
 # Start a ngrok client as all inbound event subscriptions need a public facing IP address and can handle https traffic.
-ngrok_client = NgrokClient(loop=loop)
+# ngrok_client = NgrokClient(loop=loop)
 
 
-async def ngrok_start() -> (str, str):
-    return await ngrok_client.start()
-auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
+# async def ngrok_start() -> (str, str):
+#     return await ngrok_client.start()
+# auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
+auth_public_url, eventsub_public_url = 'https://0f89-92-25-2-58.ngrok-free.app', 'https://03d8-92-25-2-58.ngrok-free.app'
 
 # fetch bot app token
 app_access_token = loop.run_until_complete(get_app_token())
@@ -91,7 +92,7 @@ user_access_token = bot_user_result_set['access_token']
 bot = Bot(user_token=user_access_token,
           initial_channels=[settings.BOT_JOIN_CHANNEL],
           eventsub_public_url=eventsub_public_url,
-          ngrok_client=ngrok_client,
+          ngrok_client=None,  # ngrok_client,
           database=db)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)

@@ -30,7 +30,7 @@ class Bot(commands.Bot):
     def __init__(self, user_token: str,
                  initial_channels: list[str],
                  eventsub_public_url: str,
-                 ngrok_client: NgrokClient,
+                 ngrok_client: NgrokClient | None,
                  database: Database):
         super().__init__(token=user_token,
                          prefix='!',
@@ -70,7 +70,8 @@ class Bot(commands.Bot):
                         return result
                     except twitchio.errors.Unauthorized:
                         print(
-                            f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. Refreshing token.{Style.RESET_ALL}")
+                            f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. "
+                            f"Refreshing token.{Style.RESET_ALL}")
                         await self.validate_token(login=settings.BOT_USERNAME)
                     except twitchio.errors.HTTPException as error:
                         print(f"{Fore.RED}Failed to reach Twitch API. Error: '{error}'.{Style.RESET_ALL}")
@@ -220,7 +221,8 @@ class Bot(commands.Bot):
                         and int(es_sub.condition['to_broadcaster_user_id']) == broadcasters[0].id):
                 await self.esclient._http.delete_subscription(es_sub)
                 print(f"{Fore.RED}Deleting the event subscription with id: "
-                      f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel {Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}")
+                      f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel "
+                      f"{Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
@@ -247,12 +249,14 @@ class Bot(commands.Bot):
                 await payload.data.broadcaster.create_marker(token=access_token,
                                                              description=event_string)
 
-    async def detect_bot_spam(self, message: twitchio.Message) -> bool:
-        if str(message.content).count('offer promotion of your channel') >= 1 \
-                or str(message.content).lower().count('viewers, followers, views, chat bots') >= 1 \
-                or str(message.content).lower().count('The price is lower than any competitor') >= 1 \
-                or str(message.content).lower().count('the quality is guaranteed to be the best') >= 1 \
-                or str(message.content).lower().count('incredibly flexible and convenient order management panel') >= 1 \
+    @staticmethod
+    async def detect_bot_spam(message: twitchio.Message) -> bool:
+        if (str(message.content).count('offer promotion of your channel') >= 1
+                or str(message.content).lower().count('viewers, followers, views, chat bots') >= 1
+                or str(message.content).lower().count('The price is lower than any competitor') >= 1
+                or str(message.content).lower().count('the quality is guaranteed to be the best') >= 1
+                or str(message.content).lower().count('incredibly flexible and convenient') >= 1
+                or str(message.content).lower().count('order management panel') >= 1) \
                 and str(message.content).lower().count('dogehype') >= 1:
             print('Bot detected')
             return True
@@ -321,7 +325,8 @@ class Bot(commands.Bot):
         try:
             auth_validate = await self._http.validate(token=user_data['access_token'])
             print(
-                f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
+                f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is "
+                f"{Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
             return auth_validate
         except errors.AuthenticationError:
             # Try to use a refresh token to update the access token
@@ -332,16 +337,19 @@ class Bot(commands.Bot):
                                            auth_result['access_token'], auth_result['expires_in'],
                                            auth_result['refresh_token'], auth_result['scope'])
             print(
-                f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
+                f"{Fore.RED}Updated access and refresh token for "
+                f"{Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
             try:
                 auth_validate = await self._http.validate(token=auth_result['access_token'])
                 print(
-                    f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
+                    f"{Fore.RED}The refreshed user token for "
+                    f"{Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
                 await self.update_bot_http_token()
                 return auth_validate
             except errors.AuthenticationError:
                 print(
-                    f"{Fore.RED}The refreshed user token for {Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
+                    f"{Fore.RED}The refreshed user token for "
+                    f"{Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
@@ -373,7 +381,8 @@ class Bot(commands.Bot):
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="VIP",
                                            cost=80085,
-                                           prompt="VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode!",
+                                           prompt="VIPs have the ability to equip a special chat "
+                                                  "badge and bypass the chat limit in slow mode!",
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
                                            token=user_token_result_set['access_token'])
@@ -519,8 +528,7 @@ class Bot(commands.Bot):
         param_username = re.sub(r"^@", "", str(ctx.message.content).split(maxsplit=1)[1])
         # Limit to broadcaster
         if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292 \
-                and str(
-            settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # keep bot connected to initial channel
+                and str(settings.BOT_JOIN_CHANNEL).lower() != param_username.lower():  # stay connected to init channel
             await self.part_channels([param_username])
             # also remove event subs
             broadcasters: List[User] = await self.fetch_users(names=[param_username])
@@ -531,7 +539,8 @@ class Bot(commands.Bot):
     async def infosec_streams(self, ctx: commands.Context):
         """ type !streams to drop a link to infosecstreams.com """
         await ctx.send(
-            f'Check out this actively maintained activity-based and auto-sorted list of InfoSec streamers: https://infosecstreams.com')
+            f'Check out this actively maintained activity-based and auto-sorted '
+            f'list of InfoSec streamers: https://infosecstreams.com')
 
     @commands.command(aliases=['deaths', 'death', 'dead', 'died', 'ded', 'dc'])
     async def death_counter(self, ctx: commands.Context):
@@ -565,7 +574,7 @@ class Bot(commands.Bot):
     async def follow_channel(self, ctx: commands.Context):
         # TODO: use a headless browser to follow the channel
         """ This endpoint is deprecated and will be shutdown on July 28, 2021. Applications that have not accessed
-        this endpoint before June 28, 2021 can no longer call this endpoint. For more information, see
+        this endpoint before 28 June 2021 can no longer call this endpoint. For more information, see
         https://discuss.dev.twitch.tv/t/deprecation-of-create-and-delete-follows-api-endpoints """
         # param: str = str(ctx.message.content).split(maxsplit=1)[1]
         # bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USERNAME])
@@ -614,7 +623,8 @@ class Bot(commands.Bot):
         vt = VirusTotalApiClient()
         if param == '-h' or param == '--h' or param == '-help' or param == '--help':
             await ctx.send(f'Usage: !virustotal <hash>'
-                           f'This command checks a file hash against the VirusTotal database to determine if it is a known malicious file.'
+                           f'This command checks a file hash against the VirusTotal '
+                           f'database to determine if it is a known malicious file.'
                            f'Arguments:'
                            f'   <hash>  Required. The file hash to check against the VirusTotal database.'
                            f'Examples:'
@@ -623,14 +633,14 @@ class Bot(commands.Bot):
                            f'Options:'
                            f'   -h, --help    Show this help message and exit.')
 
-        elif re.match(r'^(http(s)?(://)?)?(www\.)?([\w\d]{0,253})(\.)([\w\d]{2,})([/\w\d]*)$', param):
+        elif re.match(r'^(http(s)?(://)?)?(www\.)?(\w{0,253})(\.)(\w{2,})([/\w]*)$', param):
             """ type !virustotal <domain> to lookup a domain on virustotal """
             try:
                 domain_report = await vt.get_url_report(url=param)
                 report_output: list[str] = ['VirusTotal -> ']
                 report_output.append(f'url: {domain_report.url}, ') if hasattr(domain_report, 'url') else None
-                report_output.append(f'last_final_url: {domain_report.last_final_url}, ') if hasattr(domain_report,
-                                                                                                     'last_final_url') else None
+                report_output.append(f'last_final_url: {domain_report.last_final_url}, ') \
+                    if hasattr(domain_report, 'last_final_url') else None
                 report_output.append(f'title: {domain_report.title}, ') if hasattr(domain_report, 'title') else None
                 report_output.append(f'first_submission_date: {domain_report.first_submission_date}, ') if hasattr(
                     domain_report, 'first_submission_date') else None
@@ -643,10 +653,10 @@ class Bot(commands.Bot):
                 report_output.append(f'total_votes["harmless"]: {domain_report.total_votes["harmless"]}, ') if hasattr(
                     domain_report, 'total_votes') else None
                 report_output.append(
-                    f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') if hasattr(domain_report,
-                                                                                                        'total_votes') else None
-                report_output.append(f'times_submitted: {domain_report.times_submitted}!') if hasattr(domain_report,
-                                                                                                      'times_submitted') else None
+                    f'total_votes["malicious"]: {domain_report.total_votes["malicious"]}, ') \
+                    if hasattr(domain_report, 'total_votes') else None
+                report_output.append(f'times_submitted: {domain_report.times_submitted}!') \
+                    if hasattr(domain_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
                 if hasattr(domain_report, 'crowdsourced_ai_results'):
@@ -665,11 +675,12 @@ class Bot(commands.Bot):
             try:
                 file_report = await vt.get_file_report(hash_id=param)
                 report_output: list[str] = ['VirusTotal -> ']
-                report_output.append(f'meaningful_name: {file_report.meaningful_name}, ') if hasattr(file_report,
-                                                                                                     'meaningful_name') else None
+                report_output.append(f'meaningful_name: {file_report.meaningful_name}, ') \
+                    if hasattr(file_report, 'meaningful_name') else None
                 report_output.append(f'magic: {file_report.magic}, ') if hasattr(file_report, 'magic') else None
                 report_output.append(
-                    f'popular_threat_classification: {file_report.popular_threat_classification["suggested_threat_label"]}, ') if hasattr(
+                    f'popular_threat_classification: '
+                    f'{file_report.popular_threat_classification["suggested_threat_label"]}, ') if hasattr(
                     file_report, 'popular_threat_classification') else None
                 report_output.append(f'first_seen_itw_date: {file_report.first_seen_itw_date}, ') if hasattr(
                     file_report, 'first_seen_itw_date') else None
@@ -683,8 +694,8 @@ class Bot(commands.Bot):
                     file_report, 'total_votes') else None
                 report_output.append(f'total_votes["malicious"]: {file_report.total_votes["malicious"]}, ') if hasattr(
                     file_report, 'total_votes') else None
-                report_output.append(f'times_submitted: {file_report.times_submitted}!') if hasattr(file_report,
-                                                                                                    'times_submitted') else None
+                report_output.append(f'times_submitted: {file_report.times_submitted}!') \
+                    if hasattr(file_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
                 if hasattr(file_report, 'crowdsourced_ai_results'):
@@ -713,8 +724,7 @@ class Bot(commands.Bot):
                 # trim the bard prefix in the responses
                 for ch_index, choice in enumerate(response['choices']):
                     for ct_index, content in enumerate(choice['content']):
-                        pattern_prefix = r'^Sure[,.].*:'
-                        pattern_suffix = r'(?!\s)[^A-Za-z0-9\'\"](?!\s)(?!$).*$'
+
                         # determine split logic
                         if len(content.split('```')) > 1 and content.split('```')[0][0:4] == 'Sure':
                             content = content.split('```')[1]
@@ -724,15 +734,22 @@ class Bot(commands.Bot):
                         if len(content.split('\r\n\r\n')) > 1:
                             content = content.split('\r\n\r\n')[0]
 
+                        pattern_prefix = r'^Sure[,.].*:'
+                        if re.search(pattern=pattern_prefix, string=content):
+                            content = re.sub(pattern=pattern_prefix, repl='', string=content)
+
+                        pattern_suffix = r'(?!\s)[\.](?!\s)(?!$).*$'
                         if re.search(pattern_suffix, content):
-                            content = re.sub(pattern_suffix, '', content) + re.findall(pattern_suffix, content)[0]
-                        if re.search(pattern_prefix, content):
-                            content = re.sub(pattern_prefix, '', content)
+                            content = re.sub(pattern=pattern_suffix, repl='.', string=content)
+
+                        pattern_bullets = r'[\n]+Here.*(\:)([^$]*)'
+                        if re.search(pattern_bullets, content):
+                            content = re.sub(pattern=pattern_bullets, repl='', string=content)
 
                         response['choices'][ch_index]['content'][ct_index] = content
 
                 # Check if any response choices are fewer than 500 characters
-                length_array = [len(d['content'][0]) for d in response['choices']]
+                length_array = [len(choice['content'][0]) for choice in response['choices']]
 
                 # Find the index of the first value in length_array that is lower than 500
                 index_of_value_lower_than_500 = None
@@ -744,11 +761,14 @@ class Bot(commands.Bot):
                 # Check if any value is found and print the result
                 if index_of_value_lower_than_500 is not None:
                     print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} The first value lower than 500 is at index: {index_of_value_lower_than_500}{Style.RESET_ALL}")
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
+                        f"{Fore.RED} The first value lower than 500 is at index: "
+                        f"{index_of_value_lower_than_500}{Style.RESET_ALL}")
                     break
                 else:
                     print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
+                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
+                        f"{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
                 attempts += 1
 
             print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
@@ -813,6 +833,5 @@ class Bot(commands.Bot):
             to_shoutout_user = await self._http.get_users(ids=[], logins=[param_username])
             to_shoutout_channel = await self._http.get_channels(broadcaster_id=to_shoutout_user[0]['id'])
             from_broadcaster: list[User] = await self.fetch_users(names=[ctx.channel.name])
-            # from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
             await self.announce_shoutout(ctx=ctx, broadcaster=from_broadcaster[0], channel=to_shoutout_channel[0],
                                          color='blue')
