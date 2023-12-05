@@ -65,7 +65,8 @@ async def refresh_user_token(user: any) -> str:
 # async def ngrok_start() -> (str, str):
 #     return await ngrok_client.start()
 # auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
-auth_public_url, eventsub_public_url = 'https://0f89-92-25-2-58.ngrok-free.app', 'https://03d8-92-25-2-58.ngrok-free.app'
+auth_public_url = 'https://0613-80-41-232-93.ngrok-free.app'
+eventsub_public_url = 'https://0613-80-41-232-93.ngrok-free.app'
 
 # fetch bot app token
 app_access_token = loop.run_until_complete(get_app_token())

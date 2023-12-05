@@ -42,7 +42,7 @@ class Bot(commands.Bot):
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
 
-        self.chatbot = Chatbot(settings.BARD_SECURE_1PSID, settings.BARD_SECURE_1PSIDTS)
+        self.chatbot = Chatbot(secure_1psid=settings.BARD_SECURE_1PSID, secure_1psidts=settings.BARD_SECURE_1PSIDTS)
 
         self.yt_player = sounds.AudioPlayer(callback=self.music_done)
         self.sd = sd
@@ -793,6 +793,10 @@ class Bot(commands.Bot):
     async def kill_everyone(self, ctx: commands.Context):
         """ invoke skynet """
         await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
+
+    @commands.command()
+    async def mario(self, ctx: commands.Context):
+        await ctx.send(f'⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ ⬛⬛⬛⬛⬛🟥🟥🟥🟥🟥⬛⬛⬛⬛⬛⬛ ⬛⬛⬛⬛🟥🟥🟥🟥🟥🟥🟥🟥🟥⬛⬛⬛ ⬛⬛⬛⬛🟫🟫🟫🟨🟨⬛🟨⬛⬛⬛⬛⬛ ⬛⬛⬛🟫🟨🟫🟨🟨🟨⬛🟨🟨🟨⬛⬛⬛ ⬛⬛⬛🟫🟨🟫🟫🟨🟨🟨🟫🟨🟨🟨⬛⬛ ⬛⬛⬛🟫🟫🟨🟨🟨🟨🟫🟫🟫🟫⬛⬛⬛ ⬛⬛⬛⬛⬛🟨🟨🟨🟨🟨🟨🟨⬛⬛⬛⬛ ⬛⬛⬛⬛🟥🟥🟦🟥🟥🟦🟥⬛⬛⬛⬛⬛ ⬛⬛⬛🟥🟥🟥🟦🟥🟥🟦🟥🟥🟥⬛⬛⬛ ⬛⬛🟥🟥🟥🟥🟦🟦🟦🟦🟥🟥🟥🟥⬛⬛ ⬛⬛⬜⬜🟥🟦🟨🟦🟦🟨🟦🟥⬜⬜⬛⬛ ⬛⬛⬜⬜⬜🟦🟦🟦🟦🟦🟦⬜⬜⬜⬛⬛ ⬛⬛⬜⬜🟦🟦🟦⬛⬛🟦🟦🟦⬜⬜⬛⬛ ⬛⬛⬛⬛🟦🟦🟦⬛⬛🟦🟦🟦⬛⬛⬛⬛ ⬛⬛⬛🟫🟫🟫⬛⬛⬛⬛🟫🟫🟫⬛⬛⬛ ⬛⬛🟫🟫🟫🟫⬛⬛⬛⬛🟫🟫🟫🟫⬛⬛')
 
     # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
     @commands.command()
