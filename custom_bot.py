@@ -42,7 +42,7 @@ class Bot(commands.Bot):
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
 
-        self.chatbot = Chatbot(secure_1psid=settings.BARD_SECURE_1PSID, secure_1psidts=settings.BARD_SECURE_1PSIDTS)
+        # self.chatbot = Chatbot(secure_1psid=settings.BARD_SECURE_1PSID, secure_1psidts=settings.BARD_SECURE_1PSIDTS)
 
         self.yt_player = sounds.AudioPlayer(callback=self.music_done)
         self.sd = sd
@@ -303,11 +303,11 @@ class Bot(commands.Bot):
                                 user_id=message.author.id, reason='Banned for posting known bot spam/scam messages '
                                                                   '(eg: buy follows at dogehype)')
 
-        elif re.search(r'^@msec_bot', message.content):
-            """ swap any @msec_bot prefix messages to go to bard """
-
-            message.content = re.sub(r'^@msec_bot\s', '!bard ', message.content)
-            await self.handle_commands(message)
+        # elif re.search(r'^@msec_bot', message.content):
+        #     """ swap any @msec_bot prefix messages to go to bard """
+        #
+        #     message.content = re.sub(r'^@msec_bot\s', '!bard ', message.content)
+        #     await self.handle_commands(message)
 
         else:
             """ Handle commands overriding the default `event_message`. """
@@ -709,85 +709,85 @@ class Bot(commands.Bot):
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this hash! {error}')
 
-    @commands.command(aliases=['chatgpt'])
-    async def bard(self, ctx: commands.Context):
-        """ type !bard <query> to ask bard a question """
-        param: str = str(ctx.message.content).split(maxsplit=1)[1]
-        try:
-            attempts = 0
-            while True:
-                if attempts == 0:
-                    response = self.chatbot.ask(f"{param}")
-                else:
-                    response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 500 characters:")
-
-                # trim the bard prefix in the responses
-                for ch_index, choice in enumerate(response['choices']):
-                    for ct_index, content in enumerate(choice['content']):
-
-                        # determine split logic
-                        if len(content.split('```')) > 1 and content.split('```')[0][0:4] == 'Sure':
-                            content = content.split('```')[1]
-                        elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:4] == 'Sure':
-                            content = content.split('\n\n\n')[1]
-
-                        if len(content.split('\r\n\r\n')) > 1:
-                            content = content.split('\r\n\r\n')[0]
-
-                        pattern_prefix = r'^Sure[,.].*:'
-                        if re.search(pattern=pattern_prefix, string=content):
-                            content = re.sub(pattern=pattern_prefix, repl='', string=content)
-
-                        pattern_suffix = r'(?!\s)[\.](?!\s)(?!$).*$'
-                        if re.search(pattern_suffix, content):
-                            content = re.sub(pattern=pattern_suffix, repl='.', string=content)
-
-                        pattern_bullets = r'[\n]+Here.*(\:)([^$]*)'
-                        if re.search(pattern_bullets, content):
-                            content = re.sub(pattern=pattern_bullets, repl='', string=content)
-
-                        response['choices'][ch_index]['content'][ct_index] = content
-
-                # Check if any response choices are fewer than 500 characters
-                length_array = [len(choice['content'][0]) for choice in response['choices']]
-
-                # Find the index of the first value in length_array that is lower than 500
-                index_of_value_lower_than_500 = None
-                for index, length in enumerate(length_array):
-                    if length < 500:
-                        index_of_value_lower_than_500 = index
-                        break
-
-                # Check if any value is found and print the result
-                if index_of_value_lower_than_500 is not None:
-                    print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
-                        f"{Fore.RED} The first value lower than 500 is at index: "
-                        f"{index_of_value_lower_than_500}{Style.RESET_ALL}")
-                    break
-                else:
-                    print(
-                        f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
-                        f"{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
-                attempts += 1
-
-            print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
-                  f"{Fore.YELLOW}{response}{Style.RESET_ALL}")
-
-            await ctx.channel.send(
-                f"{response['choices'][index_of_value_lower_than_500]['content'][0][:500]}")
-
-        except KeyError as error:
-            print(f"{Fore.RED}BARD response is empty! "
-                  f"Error: {error}{Style.RESET_ALL}")
-
-        except RuntimeError or RuntimeWarning as error:
-            print(f"{Fore.RED}This event loop is already running! "
-                  f"Error: {error}{Style.RESET_ALL}")
-
-        except requests.exceptions.TooManyRedirects or AttributeError as error:
-            print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
-                  f"Error: {error}{Style.RESET_ALL}")
+    # @commands.command(aliases=['chatgpt'])
+    # async def bard(self, ctx: commands.Context):
+    #     """ type !bard <query> to ask bard a question """
+    #     param: str = str(ctx.message.content).split(maxsplit=1)[1]
+    #     try:
+    #         attempts = 0
+    #         while True:
+    #             if attempts == 0:
+    #                 response = self.chatbot.ask(f"{param}")
+    #             else:
+    #                 response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 500 characters:")
+    #
+    #             # trim the bard prefix in the responses
+    #             for ch_index, choice in enumerate(response['choices']):
+    #                 for ct_index, content in enumerate(choice['content']):
+    #
+    #                     # determine split logic
+    #                     if len(content.split('```')) > 1 and content.split('```')[0][0:4] == 'Sure':
+    #                         content = content.split('```')[1]
+    #                     elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:4] == 'Sure':
+    #                         content = content.split('\n\n\n')[1]
+    #
+    #                     if len(content.split('\r\n\r\n')) > 1:
+    #                         content = content.split('\r\n\r\n')[0]
+    #
+    #                     pattern_prefix = r'^Sure[,.].*:'
+    #                     if re.search(pattern=pattern_prefix, string=content):
+    #                         content = re.sub(pattern=pattern_prefix, repl='', string=content)
+    #
+    #                     pattern_suffix = r'(?!\s)[\.](?!\s)(?!$).*$'
+    #                     if re.search(pattern_suffix, content):
+    #                         content = re.sub(pattern=pattern_suffix, repl='.', string=content)
+    #
+    #                     pattern_bullets = r'[\n]+Here.*(\:)([^$]*)'
+    #                     if re.search(pattern_bullets, content):
+    #                         content = re.sub(pattern=pattern_bullets, repl='', string=content)
+    #
+    #                     response['choices'][ch_index]['content'][ct_index] = content
+    #
+    #             # Check if any response choices are fewer than 500 characters
+    #             length_array = [len(choice['content'][0]) for choice in response['choices']]
+    #
+    #             # Find the index of the first value in length_array that is lower than 500
+    #             index_of_value_lower_than_500 = None
+    #             for index, length in enumerate(length_array):
+    #                 if length < 500:
+    #                     index_of_value_lower_than_500 = index
+    #                     break
+    #
+    #             # Check if any value is found and print the result
+    #             if index_of_value_lower_than_500 is not None:
+    #                 print(
+    #                     f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
+    #                     f"{Fore.RED} The first value lower than 500 is at index: "
+    #                     f"{index_of_value_lower_than_500}{Style.RESET_ALL}")
+    #                 break
+    #             else:
+    #                 print(
+    #                     f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
+    #                     f"{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
+    #             attempts += 1
+    #
+    #         print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
+    #               f"{Fore.YELLOW}{response}{Style.RESET_ALL}")
+    #
+    #         await ctx.channel.send(
+    #             f"{response['choices'][index_of_value_lower_than_500]['content'][0][:500]}")
+    #
+    #     except KeyError as error:
+    #         print(f"{Fore.RED}BARD response is empty! "
+    #               f"Error: {error}{Style.RESET_ALL}")
+    #
+    #     except RuntimeError or RuntimeWarning as error:
+    #         print(f"{Fore.RED}This event loop is already running! "
+    #               f"Error: {error}{Style.RESET_ALL}")
+    #
+    #     except requests.exceptions.TooManyRedirects or AttributeError as error:
+    #         print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
+    #               f"Error: {error}{Style.RESET_ALL}")
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
