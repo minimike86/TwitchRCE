@@ -113,22 +113,19 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 ## Event Subscriptions | [TwitchIO EventSub Docs](https://twitchio.dev/en/latest/exts/eventsub.html)
 <details><summary>Show/Hide Event Subscription Webhooks</summary>
 
-| Event Type                          | Response                                              |
-|-------------------------------------|-------------------------------------------------------|
-| *follow*                            | Chat message                                          |
-| *cheer*                             | Shoutout & Chat message                               |
-| *subscription*                      | Shoutout & Chat message                               |
-| *raid*                              | Shoutout & Chat message                               |
-| *hypetrain_begin*                   | `**NOT IMPLEMENTED**`                                 |
-| *hypetrain_end*                     | `**NOT IMPLEMENTED**`                                 |
-| *stream_start*                      | Creates custom channel point rewards & Chat message   |
-| *stream_end*                        | Removes custom channel point rewards & Chat message   |
-| *channel_shoutout_create*           | `**NOT IMPLEMENTED**`                                 |
-| *channel_shoutout_receive*          | `**NOT IMPLEMENTED**`                                 |
-| *channel_charity_campaign_donate*   | `**NOT IMPLEMENTED**`                                 |
-| *channel_charity_campaign_start*    | `**NOT IMPLEMENTED**`                                 |
-| *channel_charity_campaign_progress* | `**NOT IMPLEMENTED**`                                 |
-| *channel_charity_campaign_stop*     | `**NOT IMPLEMENTED**`                                 |
+| Event Type                          | Response                                                             |
+|-------------------------------------|----------------------------------------------------------------------|
+| *follow*                            | Chat message                                                         |
+| *cheer*                             | Shoutout & Chat message                                              |
+| *subscription*                      | Shoutout & Chat message                                              |
+| *raid*                              | Shoutout & Chat message                                              |
+| *hypetrain_begin*                   | `**NOT IMPLEMENTED**`                                                |
+| *hypetrain_end*                     | `**NOT IMPLEMENTED**`                                                |
+| *stream_start*                      | Creates custom channel point rewards & Chat message                  |
+| *stream_end*                        | Removes custom channel point rewards & Chat message                  |
+| *channel_shoutout_create*           | `**NOT IMPLEMENTED**`                                                |
+| *channel_shoutout_receive*          | `**NOT IMPLEMENTED**`                                                |
+| *channel_charity_donate*            | Sends chat announcement with the donation amount and link to charity |
 </details>
 
 ## Environment Variables
