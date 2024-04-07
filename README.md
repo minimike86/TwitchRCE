@@ -16,7 +16,6 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `!add_channel_subs`                                                                                                           | Adds current channel subscribers to sub database table                                                                                                  | -                                                         |
 | `!kill_everyone` `**NOT IMPLEMENTED**`                                                                                        | Invoke the bots inner skynet                                                                                                                            | John Connor is dead                                       |
 | `!virustotal <hash>` <br/>_OR_ `!virustotal <url>`                                                                            | Lookup a hash or url report on virustotal                                                                                                               | 500 requests per day, and a rate of 4 requests per minute |
-| `!bard <query>` <br/>_OR_ `!chatgpt <query>`                                                                                  | Ask [Google Bard](https://bard.google.com/) a question                                                                                                  | -                                                         |
 </details>
 
 ### RCE Cog Commands
@@ -142,7 +141,6 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | CLIENT_ID=           | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
 | CLIENT_SECRET=       | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
 | VIRUS_TOTAL_API_KEY= | string | *[From VirusTotal Community](https://developers.virustotal.com/reference/getting-started)* |
-| BARD_SECURE_1PSID    | string | *[From Bard API Library](https://github.com/acheong08/Bard)*                               |
 | DATABASE_FILENAME    | string | /home/username/TwitchRCE/db/twitchrce.sqlite                                               |
 | AUTH_URI_PORT=       | int    | 3000                                                                                       |
 | EVENTSUB_URI_PORT=   | int    | 8080                                                                                       |
