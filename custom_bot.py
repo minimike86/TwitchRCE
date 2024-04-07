@@ -195,6 +195,15 @@ class Bot(commands.Bot):
                 print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for '
                       f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
+            try:
+                """ create new event subscription for channel_charity_donate event """
+                await self.esclient.subscribe_channel_charity_donate(broadcaster=broadcaster.id)
+                print(f'{Fore.RED}Subscribed to {Fore.MAGENTA}channel_charity_donate{Fore.RED} event for {Fore.MAGENTA}'
+                      f'{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+            except twitchio.HTTPException:
+                print(f'{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for '
+                      f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
+
     async def delete_all_event_subscriptions(self):
         """ before registering new event subscriptions remove old event subs """
         app_token = self.database.fetch_app_token()[0]['access_token']
