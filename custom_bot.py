@@ -289,6 +289,8 @@ class Bot(commands.Bot):
                 #                      {self.nick} (ID: {self.user_id})')
 
             # By default, turn on the sound and user commands
+            from cogs.ascii_cog import AsciiCog
+            self.add_cog(AsciiCog(self))
             from cogs.sounds_cog import SoundsCog
             self.add_cog(SoundsCog(self))
             from cogs.user_cog import UserCog
@@ -668,13 +670,13 @@ class Bot(commands.Bot):
                     if hasattr(domain_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
-                if hasattr(domain_report, 'crowdsourced_ai_results'):
-                    chatbot = Chatbot(settings.BARD_SECURE_1PSID)
-                    response = chatbot.ask(f"Reduce this text to only 500 characters: "
-                                           f"```{domain_report.crowdsourced_ai_results[0]['analysis']}```.")
-                    start = response['content'].find('\n\n') + 2
-                    end = response['content'].find('\n\n', start)
-                    await ctx.channel.send(f"{response['content'][start:end][:500]}")
+                # if hasattr(domain_report, 'crowdsourced_ai_results'):
+                    # chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+                    # response = chatbot.ask(f"Reduce this text to only 500 characters: "
+                    #                        f"```{domain_report.crowdsourced_ai_results[0]['analysis']}```.")
+                    # start = response['content'].find('\n\n') + 2
+                    # end = response['content'].find('\n\n', start)
+                    # await ctx.channel.send(f"{response['content'][start:end][:500]}")
 
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this URL! {error}')
@@ -797,15 +799,6 @@ class Bot(commands.Bot):
     #     except requests.exceptions.TooManyRedirects or AttributeError as error:
     #         print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
     #               f"Error: {error}{Style.RESET_ALL}")
-
-    @commands.command()
-    async def kill_everyone(self, ctx: commands.Context):
-        """ invoke skynet """
-        await ctx.send(f'Killing everyone... starting with {ctx.author.name}!')
-
-    @commands.command()
-    async def mario(self, ctx: commands.Context):
-        await ctx.send(f'⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ ⬛⬛⬛⬛⬛🟥🟥🟥🟥🟥⬛⬛⬛⬛⬛⬛ ⬛⬛⬛⬛🟥🟥🟥🟥🟥🟥🟥🟥🟥⬛⬛⬛ ⬛⬛⬛⬛🟫🟫🟫🟨🟨⬛🟨⬛⬛⬛⬛⬛ ⬛⬛⬛🟫🟨🟫🟨🟨🟨⬛🟨🟨🟨⬛⬛⬛ ⬛⬛⬛🟫🟨🟫🟫🟨🟨🟨🟫🟨🟨🟨⬛⬛ ⬛⬛⬛🟫🟫🟨🟨🟨🟨🟫🟫🟫🟫⬛⬛⬛ ⬛⬛⬛⬛⬛🟨🟨🟨🟨🟨🟨🟨⬛⬛⬛⬛ ⬛⬛⬛⬛🟥🟥🟦🟥🟥🟦🟥⬛⬛⬛⬛⬛ ⬛⬛⬛🟥🟥🟥🟦🟥🟥🟦🟥🟥🟥⬛⬛⬛ ⬛⬛🟥🟥🟥🟥🟦🟦🟦🟦🟥🟥🟥🟥⬛⬛ ⬛⬛⬜⬜🟥🟦🟨🟦🟦🟨🟦🟥⬜⬜⬛⬛ ⬛⬛⬜⬜⬜🟦🟦🟦🟦🟦🟦⬜⬜⬜⬛⬛ ⬛⬛⬜⬜🟦🟦🟦⬛⬛🟦🟦🟦⬜⬜⬛⬛ ⬛⬛⬛⬛🟦🟦🟦⬛⬛🟦🟦🟦⬛⬛⬛⬛ ⬛⬛⬛🟫🟫🟫⬛⬛⬛⬛🟫🟫🟫⬛⬛⬛ ⬛⬛🟫🟫🟫🟫⬛⬛⬛⬛🟫🟫🟫🟫⬛⬛')
 
     # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
     @commands.command()
