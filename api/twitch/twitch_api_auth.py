@@ -112,7 +112,6 @@ class TwitchApiAuth:
             print(f"{Fore.RED}Failed to refresh token using token: {Fore.MAGENTA}{refresh_token}{Fore.RED}.{Style.RESET_ALL}")
             return data
         if status == 200:
-            print(f"{Fore.GREEN}Token refreshed: {Fore.MAGENTA}{json.dumps(data)}{Fore.GREEN}.{Style.RESET_ALL}")
             return data
 
     async def validate_token(self, access_token: str) -> bool:
