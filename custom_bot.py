@@ -1,51 +1,39 @@
 import json
 import re
-import sqlite3
 import random
 from functools import wraps
 from typing import List, Optional
-import requests
 from colorama import Fore, Style
 
 from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
-from db.database import Database
 import settings
 
 import twitchio
-from twitchio import User, PartialUser, errors
-from twitchio.ext import commands, eventsub, pubsub, sounds
-
-import sounddevice as sd
+from twitchio import User, PartialUser
+from twitchio.ext import commands, eventsub, pubsub
 
 from api.virustotal.virus_total_api import VirusTotalApiClient
-from api.twitch.twitch_api_auth import TwitchApiAuth
-from Bard import Chatbot
-
-from ngrok.ngrok import NgrokClient
 
 
 class Bot(commands.Bot):
     """ Custom twitchio bot class """
 
-    def __init__(self, user_token: str,
+    def __init__(self,
+                 app_access_token: str,
+                 user_token: str,
                  initial_channels: list[str],
-                 eventsub_public_url: str,
-                 ngrok_client: NgrokClient | None,
-                 database: Database):
-        super().__init__(token=user_token,
-                         prefix='!',
+                 eventsub_public_url: str):
+        super().__init__(prefix='!',
+                         token=user_token,
                          initial_channels=initial_channels)
-        self.ngrok_client = None
-        self.database = database
+
+        self.app_access_token = app_access_token
+        self.user_token = user_token
+
         self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
         self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(client=self,
                                                                          webhook_secret='some_secret_string',
                                                                          callback_route=f"{eventsub_public_url}")
-
-        # self.chatbot = Chatbot(secure_1psid=settings.BARD_SECURE_1PSID, secure_1psidts=settings.BARD_SECURE_1PSIDTS)
-
-        self.yt_player = sounds.AudioPlayer(callback=self.music_done)
-        self.sd = sd
 
         # TODO: Make persistent
         self.death_count = {}
@@ -70,9 +58,9 @@ class Bot(commands.Bot):
                         return result
                     except twitchio.errors.Unauthorized:
                         print(
-                            f"{Fore.RED}{settings.BOT_USERNAME} token is unauthorized. "
+                            f"{Fore.RED}{settings.BOT_USER_ID} token is unauthorized. "
                             f"Refreshing token.{Style.RESET_ALL}")
-                        await self.validate_token(login=settings.BOT_USERNAME)
+                        await self.validate_token(login=settings.BOT_USER_ID)
                     except twitchio.errors.HTTPException as error:
                         print(f"{Fore.RED}Failed to reach Twitch API. Error: '{error}'.{Style.RESET_ALL}")
                     except CircuitBreakerOpenError:
@@ -83,36 +71,29 @@ class Bot(commands.Bot):
 
         return decorator
 
-    @staticmethod
-    async def music_done():
-        print(f"{Fore.RED}Finished playing youtube song!{Style.RESET_ALL}")
-
-    @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def update_bot_http_token(self):
+    async def update_bot_http_token(self, token):
         """ updates the bots http client token """
-        bot_access_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
-        self._http.token = bot_access_token_result_set['access_token']
+        super()._http.token = token
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def __channel_broadcasters_init__(self):
-        """ get broadcasters objects for every user_login, you need these to send messages """
-        user_login_result_set = self.database.fetch_all_user_logins()
-        user_logins: list[str] = [row['broadcaster_login'] for row in user_login_result_set]
-        # Make sure settings.BOT_USERNAME is validated first as it sets the bot nick
-        user_logins.remove(settings.BOT_USERNAME)
-        user_logins.insert(0, settings.BOT_USERNAME)
-        for login in user_logins:
-            print(f"{Fore.RED}Validating user token for {login}{Style.RESET_ALL}")
-            await self.validate_token(login)
-
-        user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=user_logins)
-        broadcasters: List[PartialUser] = []
-        try:
-            for user in user_data:
-                broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
-        except twitchio.errors.Unauthorized as error:
-            print(f"{Fore.RED}Unauthorized: {error}{Style.RESET_ALL}")
-        self.channel_broadcasters = broadcasters
+    # async def __channel_broadcasters_init__(self):
+    #     """ get broadcasters objects for every user_login, you need these to send messages """
+    #     user_login_result_set = self.database.fetch_all_user_logins()
+    #     user_logins: list[str] = [row['broadcaster_login'] for row in user_login_result_set]
+    #     # Make sure settings.BOT_USER_ID is validated first as it sets the bot nick
+    #     user_logins.remove(settings.BOT_USER_ID)
+    #     user_logins.insert(0, settings.BOT_USER_ID)
+    #     for login in user_logins:
+    #         print(f"{Fore.RED}Validating user token for {login}{Style.RESET_ALL}")
+    #         await self.validate_token(login)
+    #
+    #     user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=user_logins)
+    #     broadcasters: List[PartialUser] = []
+    #     try:
+    #         for user in user_data:
+    #             broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
+    #     except twitchio.errors.Unauthorized as error:
+    #         print(f"{Fore.RED}Unauthorized: {error}{Style.RESET_ALL}")
+    #     self.channel_broadcasters = broadcasters
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def __validate__(self, user_token: str):
@@ -130,9 +111,9 @@ class Bot(commands.Bot):
 
         """ start the esclient listening on specified port """
         try:
-            self.loop.create_task(self.esclient.listen(port=settings.EVENTSUB_URI_PORT))
+            self.loop.create_task(self.esclient.listen(port=80))
             print(f"{Fore.RED}Running EventSub server on "
-                  f"[{Fore.MAGENTA}port={settings.EVENTSUB_URI_PORT}{Fore.RED}].{Style.RESET_ALL}")
+                  f"[{Fore.MAGENTA}port=80{Fore.RED}].{Style.RESET_ALL}")
         except Exception as e:
             print(e.with_traceback(tb=None))
 
@@ -206,7 +187,7 @@ class Bot(commands.Bot):
 
     async def delete_all_event_subscriptions(self):
         """ before registering new event subscriptions remove old event subs """
-        app_token = self.database.fetch_app_token()[0]['access_token']
+        app_token = self.app_access_token
         self.esclient.client._http.token = app_token
         self.esclient._http.__init__(client=self.esclient, token=app_token)
         es_subs = await self.esclient._http.get_subscriptions()
@@ -218,9 +199,7 @@ class Bot(commands.Bot):
 
     async def delete_event_subscriptions(self, broadcasters: List[User]):
         """ before registering new event subscriptions remove old event subs """
-        app_token = self.database.fetch_app_token()[0]['access_token']
-        self.esclient.client._http.token = app_token
-        self.esclient._http.__init__(client=self.esclient, token=app_token)
+        self.esclient._http.__init__(client=self.esclient, token=self.app_access_token)
         es_subs = await self.esclient._http.get_subscriptions()
         print(f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}")
         for es_sub in es_subs:
@@ -233,7 +212,6 @@ class Bot(commands.Bot):
                       f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel "
                       f"{Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}")
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def set_stream_marker(self, payload: eventsub.NotificationEvent, event_string: str):
         # create stream marker (Stream markers cannot be created when the channel is offline)
         if hasattr(payload.data, 'reciever'):
@@ -243,20 +221,11 @@ class Bot(commands.Bot):
 
         if len(streams) >= 1 and streams[0]['type'] == 'live':
 
-            # Obtain broadcaster access token
-            if hasattr(payload.data, 'reciever'):
-                access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=payload.data.reciever.id)
-            else:
-                access_token_result_set = self.database.fetch_user_access_token(
-                    broadcaster_id=payload.data.broadcaster.id)
-            access_token = [str(token) for token in access_token_result_set][0]
-
             # Create the marker
             if hasattr(payload.data, 'reciever'):
-                await payload.data.reciever.create_marker(token=access_token, description=event_string)
+                await payload.data.reciever.create_marker(token=self.user_token, description=event_string)
             else:
-                await payload.data.broadcaster.create_marker(token=access_token,
-                                                             description=event_string)
+                await payload.data.broadcaster.create_marker(token=self.user_token, description=event_string)
 
     @staticmethod
     async def detect_bot_spam(message: twitchio.Message) -> bool:
@@ -285,16 +254,12 @@ class Bot(commands.Bot):
                       f"as bot user: {Fore.MAGENTA}{self.nick}{Fore.BLUE} "
                       f"({Fore.MAGENTA}ID: {self.user_id}{Fore.BLUE})!{Style.RESET_ALL}")
                 # uncomment below to say in chat when the bot joins
-                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user:
-                #                      {self.nick} (ID: {self.user_id})')
+                await channel.send(f'Logged into channel(s): {channel.name}, as bot user: '
+                                   f'{self.nick} (ID: {self.user_id})')
 
             # By default, turn on the sound and user commands
             from cogs.ascii_cog import AsciiCog
             self.add_cog(AsciiCog(self))
-            from cogs.sounds_cog import SoundsCog
-            self.add_cog(SoundsCog(self))
-            from cogs.user_cog import UserCog
-            self.add_cog(UserCog(self))
 
     async def event_message(self, message: twitchio.Message):
         """ Messages with echo set to True are messages sent by the bot. ignore them. """
@@ -309,60 +274,13 @@ class Bot(commands.Bot):
         if is_bot:
             user: PartialUser = await message.channel.user()
             # oauth user access token with the ``moderator:manage:banned_users`` scope
-            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=user.id)
-            await user.ban_user(token=user_token_result_set['access_token'], moderator_id=user.id,
-                                user_id=message.author.id, reason='Banned for posting known bot spam/scam messages '
-                                                                  '(eg: buy follows at dogehype)')
-
-        # elif re.search(r'^@msec_bot', message.content):
-        #     """ swap any @msec_bot prefix messages to go to bard """
-        #
-        #     message.content = re.sub(r'^@msec_bot\s', '!bard ', message.content)
-        #     await self.handle_commands(message)
-
+            await user.ban_user(token=self.user_token, moderator_id=user.id,
+                                user_id=int(message.author.id),
+                                reason='Banned for posting known bot spam/scam messages (eg: buy follows at dogehype)')
         else:
             """ Handle commands overriding the default `event_message`. """
             await self.handle_commands(message)
 
-    # check for any user logins and validate their access_tokens.
-    # If invalid or missing then generate new tokens
-    @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def validate_token(self, login: str) -> any:
-        """
-        test a user token and if an invalid prompt ask the user to visit the url to generate a new token
-        """
-        user_result_set = self.database.fetch_user(broadcaster_login=login)
-        user_data = [row for row in user_result_set][0]
-        try:
-            auth_validate = await self._http.validate(token=user_data['access_token'])
-            print(
-                f"{Fore.RED}The user token for {Fore.MAGENTA}{login}{Fore.RED} is "
-                f"{Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
-            return auth_validate
-        except errors.AuthenticationError:
-            # Try to use a refresh token to update the access token
-            twitch_api_auth_http = TwitchApiAuth()
-            auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user_data['refresh_token'])
-            self.database.insert_user_data(user_data['broadcaster_id'], user_data['broadcaster_login'],
-                                           user_data['email'],
-                                           auth_result['access_token'], auth_result['expires_in'],
-                                           auth_result['refresh_token'], auth_result['scope'])
-            print(
-                f"{Fore.RED}Updated access and refresh token for "
-                f"{Fore.MAGENTA}{user_data['broadcaster_login']}{Fore.RED}.{Style.RESET_ALL}")
-            try:
-                auth_validate = await self._http.validate(token=auth_result['access_token'])
-                print(
-                    f"{Fore.RED}The refreshed user token for "
-                    f"{Fore.MAGENTA}{login}{Fore.RED} is {Fore.GREEN}VALID{Fore.RED}.{Style.RESET_ALL}")
-                await self.update_bot_http_token()
-                return auth_validate
-            except errors.AuthenticationError:
-                print(
-                    f"{Fore.RED}The refreshed user token for "
-                    f"{Fore.MAGENTA}{login}{Fore.RED} is {Fore.RED}INVALID{Fore.RED}.{Style.RESET_ALL}")
-
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
         """
         Adds channel point redemption that immediately closes the last terminal window that was opened without warning
@@ -370,22 +288,19 @@ class Bot(commands.Bot):
         channel = await self._http.get_channels(broadcaster_id=broadcaster.id)
         if channel[0]['game_id'] is not None \
                 and int(channel[0]['game_id']) in [509670, 1469308723]:
-            # 509670 = Science & Technology, 1469308723 = Software and Game Dev """
-            user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
+            # 509670 = Science & Technology, 1469308723 = Software and Game Dev
             await self._http.create_reward(broadcaster_id=broadcaster.id,
                                            title="Kill My Shell",
                                            cost=6666,
                                            prompt="Immediately closes the last terminal window "
                                                   "that was opened without warning!",
                                            global_cooldown=5 * 60,
-                                           token=user_token_result_set['access_token'])
+                                           token=self.user_token)
             print(f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """ Adds channel point redemption that adds the user to the VIP list automatically """
-        user_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
-        vips = await self._http.get_channel_vips(token=user_token_result_set['access_token'],
+        vips = await self._http.get_channel_vips(token=self.user_token,
                                                  broadcaster_id=broadcaster.id,
                                                  first=100)
         if len(vips) < settings.MAX_VIP_SLOTS:
@@ -396,24 +311,23 @@ class Bot(commands.Bot):
                                                   "badge and bypass the chat limit in slow mode!",
                                            max_per_user=1,
                                            global_cooldown=5 * 60,
-                                           token=user_token_result_set['access_token'])
+                                           token=self.user_token)
             print(f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
-        user_access_token_result_set = self.database.fetch_user_access_token(broadcaster_id=broadcaster.id)
         rewards = await self._http.get_rewards(broadcaster_id=broadcaster.id,
                                                only_manageable=True,
-                                               token=user_access_token_result_set['access_token'])
+                                               token=self.user_token)
         print(f"{Fore.RED}Got rewards: [{Fore.MAGENTA}{json.dumps(rewards)}{Fore.RED}]{Style.RESET_ALL}")
         if rewards is not None:
             custom_reward_titles = ["Kill My Shell", "VIP"]
             for reward in list(filter(lambda x: x["title"] in custom_reward_titles, rewards)):
                 await self._http.delete_custom_reward(broadcaster_id=broadcaster.id,
                                                       reward_id=reward["id"],
-                                                      token=user_access_token_result_set['access_token'])
+                                                      token=self.user_token)
                 print(f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
                       f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}")
 
@@ -428,16 +342,14 @@ class Bot(commands.Bot):
         if not channel['game_name'] == '':
             message.append(f" They were last playing `{channel['game_name']}`.")
 
-        moderator_result_set = self.database.fetch_user(broadcaster_login=settings.BOT_USERNAME)
         error_count = 0
         try:
-            if 'access_token' in dict(moderator_result_set[0]).keys():
-                await self.post_chat_announcement(token=dict(moderator_result_set[0])['access_token'],
-                                                  broadcaster_id=broadcaster.id,
-                                                  message=''.join(message),
-                                                  moderator_id=dict(moderator_result_set[0])['broadcaster_id'],
-                                                  # Moderator ID must match the user ID in the user access token.
-                                                  color=color)
+            await self.post_chat_announcement(token=self.user_token,
+                                              broadcaster_id=broadcaster.id,
+                                              message=''.join(message),
+                                              moderator_id=broadcaster.id,
+                                              # Moderator ID must match the user ID in the user access token.
+                                              color=color)
 
         except Exception as error:
             print(f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
@@ -446,17 +358,16 @@ class Bot(commands.Bot):
             raise
 
         try:
-            if 'access_token' in dict(moderator_result_set[0]).keys():
-                """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
-                    The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
-                if channel['broadcaster_id'] != str(broadcaster.id):
-                    streams = await self._http.get_streams(user_ids=[broadcaster.id])
-                    if len(streams) >= 1 and streams[0]['type'] == 'live':
-                        # Moderator ID must match the user ID in the user access token.
-                        await self.broadcaster_shoutout(broadcaster=broadcaster,
-                                                        token=dict(moderator_result_set[0])['access_token'],
-                                                        to_broadcaster_id=channel['broadcaster_id'],
-                                                        moderator_id=dict(moderator_result_set[0])['broadcaster_id'])
+            """ Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US). 
+                The channel giving a Shoutout must be live AND you cannot shoutout the current streamer."""
+            if channel['broadcaster_id'] != str(broadcaster.id):
+                streams = await self._http.get_streams(user_ids=[broadcaster.id])
+                if len(streams) >= 1 and streams[0]['type'] == 'live':
+                    # Moderator ID must match the user ID in the user access token.
+                    await self.broadcaster_shoutout(broadcaster=broadcaster,
+                                                    token=self.user_token,
+                                                    to_broadcaster_id=channel['broadcaster_id'],
+                                                    moderator_id=channel['broadcaster_id'])
 
         except Exception as error:
             """ Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout. """
@@ -482,7 +393,10 @@ class Bot(commands.Bot):
                                                 color=color)
 
     @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def broadcaster_shoutout(self, broadcaster: PartialUser | User, token: str, to_broadcaster_id: int,
+    async def broadcaster_shoutout(self,
+                                   broadcaster: PartialUser | User,
+                                   token: str,
+                                   to_broadcaster_id: int,
                                    moderator_id: int):
         await broadcaster.shoutout(token=token,
                                    to_broadcaster_id=to_broadcaster_id,
@@ -520,10 +434,6 @@ class Bot(commands.Bot):
     async def hello(self, ctx: commands.Context):
         """ type !hello to say hello to author """
         await ctx.send(f'Hello {ctx.author.name}!')
-
-    @commands.command()
-    async def stopsong(self, ctx: commands.Context):
-        self.yt_player.stop()
 
     @commands.command()
     async def join(self, ctx: commands.Context):
@@ -588,39 +498,37 @@ class Bot(commands.Bot):
         this endpoint before 28 June 2021 can no longer call this endpoint. For more information, see
         https://discuss.dev.twitch.tv/t/deprecation-of-create-and-delete-follows-api-endpoints """
         # param: str = str(ctx.message.content).split(maxsplit=1)[1]
-        # bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USERNAME])
-        # bot_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USERNAME)
+        # bot_user: list[twitchio.User] = await self.fetch_users(names=[settings.BOT_USER_ID])
+        # bot_token_result_set = self.database.fetch_user_access_token(broadcaster_login=settings.BOT_USER_ID)
         # to_follow_user: list[twitchio.User] = await self.fetch_users(names=[param])
         # await to_follow_user[0].follow(userid=int(bot_user[0].id), token=dict(bot_token_result_set)['access_token'])
         pass
 
-    @commands.command(aliases=['mod'])
-    @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def mod_bot(self, ctx: commands.Context):
-        user_token_result_set = self.database.fetch_user_access_token(broadcaster_login=ctx.channel.name)
-        from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-        to_moderator_user = await self._http.get_users(ids=[], logins=[settings.BOT_USERNAME])
-        await from_broadcaster.add_channel_moderator(token=user_token_result_set['access_token'],
-                                                     user_id=to_moderator_user[0]['id'])
+    # @commands.command(aliases=['mod'])
+    # TODO: Update to dynamodb
+    # async def mod_bot(self, ctx: commands.Context):
+    #     from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+    #     to_moderator_user = await self._http.get_users(ids=[], logins=[settings.BOT_USER_ID])
+    #     await from_broadcaster.add_channel_moderator(token=self.user_token,
+    #                                                  user_id=to_moderator_user[0]['id'])
 
-    @commands.command()
-    @circuit_breaker(max_failures=3, reset_timeout=10)
-    async def add_channel_subs(self, ctx: commands.Context):
-        user_result_set = self.database.fetch_user(broadcaster_login=ctx.channel.name)
-        subs = await self._http.get_channel_subscriptions(token=user_result_set[0]['access_token'],
-                                                          broadcaster_id=user_result_set[0]['broadcaster_id'])
-        self.database.update_all_subs_inactive()
-        for sub in subs:
-            try:
-                self.database.insert_sub_data(broadcaster_id=sub['broadcaster_id'],
-                                              broadcaster_login=sub['broadcaster_login'],
-                                              broadcaster_name=sub['broadcaster_name'],
-                                              gifter_id=sub['gifter_id'], gifter_login=sub['gifter_login'],
-                                              gifter_name=sub['gifter_name'], is_gift=sub['is_gift'],
-                                              plan_name=sub['plan_name'], tier=sub['tier'], user_id=sub['user_id'],
-                                              user_name=sub['user_name'], user_login=sub['user_login'], is_active=True)
-            except sqlite3.IntegrityError:
-                print(f"Row already exists")
+    # @commands.command()
+    # TODO: Update to dynamodb
+    # async def add_channel_subs(self, ctx: commands.Context):
+    #     subs = await self._http.get_channel_subscriptions(token=self.user_token,
+    #                                                       broadcaster_id=user_result_set[0]['broadcaster_id'])
+    #     self.database.update_all_subs_inactive()
+    #     for sub in subs:
+    #         try:
+    #             self.database.insert_sub_data(broadcaster_id=sub['broadcaster_id'],
+    #                                           broadcaster_login=sub['broadcaster_login'],
+    #                                           broadcaster_name=sub['broadcaster_name'],
+    #                                           gifter_id=sub['gifter_id'], gifter_login=sub['gifter_login'],
+    #                                           gifter_name=sub['gifter_name'], is_gift=sub['is_gift'],
+    #                                           plan_name=sub['plan_name'], tier=sub['tier'], user_id=sub['user_id'],
+    #                                           user_name=sub['user_name'], user_login=sub['user_login'], is_active=True)
+    #         except sqlite3.IntegrityError:
+    #             print(f"Row already exists")
 
     @commands.command(aliases=['vt'])
     async def virustotal(self, ctx: commands.Context):
@@ -709,96 +617,16 @@ class Bot(commands.Bot):
                     if hasattr(file_report, 'times_submitted') else None
                 await ctx.send(''.join(report_output))
 
-                if hasattr(file_report, 'crowdsourced_ai_results'):
-                    chatbot = Chatbot(settings.BARD_SECURE_1PSID)
-                    response = chatbot.ask(f"Reduce this text to only 500 characters: "
-                                           f"```{file_report.crowdsourced_ai_results[0]['analysis']}```.")
-                    start = response['content'].find('\n\n') + 2
-                    end = response['content'].find('\n\n', start)
-                    await ctx.channel.send(f"{response['content'][start:end][:500]}")
+                # if hasattr(file_report, 'crowdsourced_ai_results'):
+                #     chatbot = Chatbot(settings.BARD_SECURE_1PSID)
+                #     response = chatbot.ask(f"Reduce this text to only 500 characters: "
+                #                            f"```{file_report.crowdsourced_ai_results[0]['analysis']}```.")
+                #     start = response['content'].find('\n\n') + 2
+                #     end = response['content'].find('\n\n', start)
+                #     await ctx.channel.send(f"{response['content'][start:end][:500]}")
 
             except Exception as error:
                 await ctx.send(f'There\'s no VirusTotal report for this hash! {error}')
-
-    # @commands.command(aliases=['chatgpt'])
-    # async def bard(self, ctx: commands.Context):
-    #     """ type !bard <query> to ask bard a question """
-    #     param: str = str(ctx.message.content).split(maxsplit=1)[1]
-    #     try:
-    #         attempts = 0
-    #         while True:
-    #             if attempts == 0:
-    #                 response = self.chatbot.ask(f"{param}")
-    #             else:
-    #                 response = self.chatbot.ask(f"That response was too long. Re-answer in fewer than 500 characters:")
-    #
-    #             # trim the bard prefix in the responses
-    #             for ch_index, choice in enumerate(response['choices']):
-    #                 for ct_index, content in enumerate(choice['content']):
-    #
-    #                     # determine split logic
-    #                     if len(content.split('```')) > 1 and content.split('```')[0][0:4] == 'Sure':
-    #                         content = content.split('```')[1]
-    #                     elif len(content.split('\n\n\n')) > 1 and content.split('\n\n\n')[0][0:4] == 'Sure':
-    #                         content = content.split('\n\n\n')[1]
-    #
-    #                     if len(content.split('\r\n\r\n')) > 1:
-    #                         content = content.split('\r\n\r\n')[0]
-    #
-    #                     pattern_prefix = r'^Sure[,.].*:'
-    #                     if re.search(pattern=pattern_prefix, string=content):
-    #                         content = re.sub(pattern=pattern_prefix, repl='', string=content)
-    #
-    #                     pattern_suffix = r'(?!\s)[\.](?!\s)(?!$).*$'
-    #                     if re.search(pattern_suffix, content):
-    #                         content = re.sub(pattern=pattern_suffix, repl='.', string=content)
-    #
-    #                     pattern_bullets = r'[\n]+Here.*(\:)([^$]*)'
-    #                     if re.search(pattern_bullets, content):
-    #                         content = re.sub(pattern=pattern_bullets, repl='', string=content)
-    #
-    #                     response['choices'][ch_index]['content'][ct_index] = content
-    #
-    #             # Check if any response choices are fewer than 500 characters
-    #             length_array = [len(choice['content'][0]) for choice in response['choices']]
-    #
-    #             # Find the index of the first value in length_array that is lower than 500
-    #             index_of_value_lower_than_500 = None
-    #             for index, length in enumerate(length_array):
-    #                 if length < 500:
-    #                     index_of_value_lower_than_500 = index
-    #                     break
-    #
-    #             # Check if any value is found and print the result
-    #             if index_of_value_lower_than_500 is not None:
-    #                 print(
-    #                     f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
-    #                     f"{Fore.RED} The first value lower than 500 is at index: "
-    #                     f"{index_of_value_lower_than_500}{Style.RESET_ALL}")
-    #                 break
-    #             else:
-    #                 print(
-    #                     f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]"
-    #                     f"{Fore.RED} No value lower than 500 found in length_array.{Style.RESET_ALL}")
-    #             attempts += 1
-    #
-    #         print(f"{Fore.RED}[Bard Response]{Fore.YELLOW}[{response['conversation_id']}]{Fore.RED}: "
-    #               f"{Fore.YELLOW}{response}{Style.RESET_ALL}")
-    #
-    #         await ctx.channel.send(
-    #             f"{response['choices'][index_of_value_lower_than_500]['content'][0][:500]}")
-    #
-    #     except KeyError as error:
-    #         print(f"{Fore.RED}BARD response is empty! "
-    #               f"Error: {error}{Style.RESET_ALL}")
-    #
-    #     except RuntimeError or RuntimeWarning as error:
-    #         print(f"{Fore.RED}This event loop is already running! "
-    #               f"Error: {error}{Style.RESET_ALL}")
-    #
-    #     except requests.exceptions.TooManyRedirects or AttributeError as error:
-    #         print(f"{Fore.RED}The {Fore.MAGENTA}BARD_SECURE_1PSID{Fore.RED} secret has probably expired! "
-    #               f"Error: {error}{Style.RESET_ALL}")
 
     # TODO: add some discord commands https://discordpy.readthedocs.io/en/stable/
     @commands.command()
@@ -811,25 +639,27 @@ class Bot(commands.Bot):
         """ type !lurk to let the streamer know you're lurking """
         await ctx.send(f'{ctx.author.name} is watching the stream with the /silent flag!')
 
-    @commands.command()
-    async def raids(self, ctx: commands.Context):
-        """ type !raids @username to print out how many raids you've received from the user """
-        param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
-        if len(param_username) >= 1:
-            raider_login_result_set: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(),
-                                                                             receiver_login=ctx.channel.name)
-            await ctx.send(f"{param_username} has raided the channel {len(raider_login_result_set)} times!")
+    # @commands.command()
+    # TODO: Update to dynamodb
+    # async def raids(self, ctx: commands.Context):
+    #     """ type !raids @username to print out how many raids you've received from the user """
+    #     param_username = re.sub(r"^@", "", str(ctx.message.content).split(' ')[1])
+    #     if len(param_username) >= 1:
+    #         raider_login_result_set: sqlite3.Row = self.database.fetch_raids(raider_login=param_username.lower(),
+    #                                                                          receiver_login=ctx.channel.name)
+    #         await ctx.send(f"{param_username} has raided the channel {len(raider_login_result_set)} times!")
 
-    @commands.command()
-    async def redemptions(self, ctx: commands.Context):
-        """ type !redemptions to force the custom redemptions to load """
-        broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
-        if int(ctx.author.id) == broadcaster.id or int(ctx.author.id) == 125444292:
-            # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
-            await self.delete_all_custom_rewards(broadcaster)
-            # Add new custom rewards
-            await self.add_kill_my_shell_redemption_reward(broadcaster)
-            await self.add_vip_auto_redemption_reward(broadcaster)
+    # @commands.command()
+    # TODO: Update to dynamodb
+    # async def redemptions(self, ctx: commands.Context):
+    #     """ type !redemptions to force the custom redemptions to load """
+    #     broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+    #     if int(ctx.author.id) == broadcaster.id or int(ctx.author.id) == 125444292:
+    #         # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
+    #         await self.delete_all_custom_rewards(broadcaster)
+    #         # Add new custom rewards
+    #         await self.add_kill_my_shell_redemption_reward(broadcaster)
+    #         await self.add_vip_auto_redemption_reward(broadcaster)
 
     @commands.command(aliases=['so'])
     async def shoutout(self, ctx: commands.Context):

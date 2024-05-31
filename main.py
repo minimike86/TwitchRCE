@@ -1,29 +1,26 @@
 import asyncio
-import socket
+import secrets
 from typing import Optional, List
-
 from colorama import Fore, Style
 from twitchio import User
 from twitchio.ext import eventsub, pubsub
-
-from auth.threading_tcp_server_with_stop import ThreadingTCPServerWithStop, CodeHandler
 from cogs.rce import RCECog
 from cogs.vip import VIPCog
 from custom_bot import Bot
-from db.database import Database
-
 from api.twitch.twitch_api_auth import TwitchApiAuth
+
+import boto3
+from botocore.exceptions import PartialCredentialsError, NoCredentialsError
 
 import settings
 
 import nest_asyncio
 nest_asyncio.apply()
 
-
 print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
 
-# init db
-db = Database()
+dynamodb = boto3.resource('dynamodb')
+user_table = dynamodb.Table('MSecBot_User')
 
 # init asyncio
 loop = asyncio.new_event_loop()
@@ -36,15 +33,12 @@ twitch_api_auth_http = TwitchApiAuth()
 async def get_app_token() -> str:
     """ Uses the bots' client id and secret to generate a new application token via client credentials grant flow """
     client_creds_grant_flow = await twitch_api_auth_http.client_credentials_grant_flow()
-    db.insert_app_data(client_creds_grant_flow['access_token'],
-                       client_creds_grant_flow['expires_in'],
-                       client_creds_grant_flow['token_type'])
     print(f"{Fore.RED}Updated {Fore.MAGENTA}app access token{Fore.RED}!{Style.RESET_ALL}")
     return client_creds_grant_flow['access_token']
 
 
 async def check_valid_token(user: any) -> bool:
-    is_valid_token = await twitch_api_auth_http.validate_token(access_token=user['access_token'])
+    is_valid_token = await twitch_api_auth_http.validate_token(access_token=user.get('access_token'))
     if not is_valid_token:
         access_token = await refresh_user_token(user=user)
         is_valid_token = await twitch_api_auth_http.validate_token(access_token=access_token)
@@ -53,74 +47,138 @@ async def check_valid_token(user: any) -> bool:
 
 async def refresh_user_token(user: any) -> str:
     auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
-    db.insert_user_data(user['broadcaster_id'], user['broadcaster_login'], user['email'],
-                        auth_result['access_token'], auth_result['expires_in'],
-                        auth_result['refresh_token'], auth_result['scope'])
-    print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['broadcaster_login']}{Fore.RED}!"
-          f"{Style.RESET_ALL}")
+    try:
+        # Insert the item
+        user_table.put_item(Item={
+            'access_token': auth_result['access_token'],
+            'client_id': settings.CLIENT_ID,
+            'expires_in': auth_result['expires_in'],
+            'login': user['broadcaster_login'],
+            'email': user['email'],
+            'refresh_token': auth_result['refresh_token'],
+            'scopes': auth_result['scope'],
+            'token_type': 'bearer',
+            'user_id': user['broadcaster_id']
+        })
+        print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['broadcaster_login']}{Fore.RED}!"
+              f"{Style.RESET_ALL}")
+    except (NoCredentialsError, PartialCredentialsError):
+        print("Credentials not available")
     return auth_result['access_token']
 
-# Start a ngrok client as all inbound event subscriptions need a public facing IP address and can handle https traffic.
-# ngrok_client = NgrokClient(loop=loop)
-
-
-# async def ngrok_start() -> (str, str):
-#     return await ngrok_client.start()
-# auth_public_url, eventsub_public_url = loop.run_until_complete(ngrok_client.start())
-auth_public_url = 'https://0613-80-41-232-93.ngrok-free.app'
-eventsub_public_url = 'https://0613-80-41-232-93.ngrok-free.app'
+"""
+██████   ██████  ████████         ██ ███    ██ ██ ████████ 
+██   ██ ██    ██    ██            ██ ████   ██ ██    ██    
+██████  ██    ██    ██            ██ ██ ██  ██ ██    ██    
+██   ██ ██    ██    ██            ██ ██  ██ ██ ██    ██    
+██████   ██████     ██    ███████ ██ ██   ████ ██    ██    
+Start the pubsub client for the Twitch channel
+"""
 
 # fetch bot app token
 app_access_token = loop.run_until_complete(get_app_token())
 
-
-async def start_threading_server():
-    with ThreadingTCPServerWithStop(("0.0.0.0", 3000), CodeHandler,
-                                    redirect_uri='http://localhost:3000/auth') as tcpserver:
-        print(f"Serving on {tcpserver.server_address}...")
-        tcpserver.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if tcpserver.stop is not True:
-            tcpserver.stop = False
-            tcpserver.serve_forever(poll_interval=0.1)
-        print('Server stopped')
-
 # fetch bot user token (refresh it if needed)
-bot_user_result_set = None
+bot_user = None
 try:
-    bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
-    loop.run_until_complete(check_valid_token(user=bot_user_result_set))
+    response = user_table.get_item(
+        Key={
+            'id': int(settings.BOT_USER_ID)
+        }
+    )
+    bot_user = response.get('Item', 0)
+    if not bot_user.get('access_token'):
+
+        scope = "user:read:chat user:write:chat moderator:read:suspicious_users moderator:read:chatters " \
+                "user:manage:chat_color moderator:manage:chat_messages moderator:manage:chat_settings " \
+                "moderator:read:chat_settings chat:read chat:edit user:read:email user:edit:broadcast " \
+                "user:read:broadcast clips:edit bits:read channel:moderate channel:read:subscriptions " \
+                "whispers:read whispers:edit moderation:read channel:read:redemptions channel:edit:commercial " \
+                "channel:read:hype_train channel:manage:broadcast user:edit:follows channel:manage:redemptions " \
+                "user:read:blocked_users user:manage:blocked_users user:read:subscriptions user:read:follows " \
+                "channel:manage:polls channel:manage:predictions channel:read:polls channel:read:predictions " \
+                "moderator:manage:automod channel:read:goals moderator:read:automod_settings " \
+                "moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms " \
+                "channel:manage:raids moderator:manage:announcements channel:read:vips channel:manage:vips " \
+                "user:manage:whispers channel:read:charity moderator:read:shield_mode moderator:manage:shield_mode " \
+                "moderator:read:shoutouts moderator:manage:shoutouts moderator:read:followers " \
+                "channel:read:guest_star channel:manage:guest_star moderator:read:guest_star " \
+                "moderator:manage:guest_star channel:bot user:bot channel:read:ads user:read:moderated_channels " \
+                "user:read:emotes moderator:read:unban_requests moderator:manage:unban_requests channel:read:editors " \
+                "analytics:read:games analytics:read:extensions"
+
+        redirect_uri = 'https://3yyduoz2ok.execute-api.eu-west-2.amazonaws.com/twitch/oauth2/authorization_code'
+        authorization_url = f"https://id.twitch.tv/oauth2/authorize?client_id={settings.CLIENT_ID}" \
+                            f"&force_verify=true" \
+                            f"&redirect_uri={redirect_uri}" \
+                            f"&response_type=code" \
+                            f"&scope={scope.replace(' ', '%20')}" \
+                            f"&state={secrets.token_hex(16)}"
+
+        print(f"{Fore.RED}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.RED}.{Style.RESET_ALL}")
+
+    else:
+        loop.run_until_complete(check_valid_token(user=bot_user))
 except IndexError:
-    start_threading_server()
-    bot_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_USERNAME)][0]
-    loop.run_until_complete(check_valid_token(user=bot_user_result_set))
+    print(f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{settings.BOT_USER_ID}{Fore.RED}!"
+          f"{Style.RESET_ALL}")
+    exit(0)
 
 # Create a bot from your twitch client credentials
-user_access_token = bot_user_result_set['access_token']
-bot = Bot(user_token=user_access_token,
+bot = Bot(app_access_token=app_access_token,
+          user_token=bot_user.get('access_token'),
           initial_channels=[settings.BOT_JOIN_CHANNEL],
-          eventsub_public_url=eventsub_public_url,
-          ngrok_client=None,  # ngrok_client,
-          database=db)
+          eventsub_public_url='https://ec2-3-9-179-105.eu-west-2.compute.amazonaws.com/')
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
 
 # preload broadcasters objects
-bot.loop.run_until_complete(bot.__channel_broadcasters_init__())
+# bot.loop.run_until_complete(bot.__channel_broadcasters_init__())
 
-# start the pub subscription client
-bot_join_user_result_set = None
+"""
+██████  ███████  ██████ ██      ██ ███████ ███    ██ ████████         ██ ███    ██ ██ ████████ 
+██   ██ ██      ██      ██      ██ ██      ████   ██    ██            ██ ████   ██ ██    ██    
+██████  ███████ ██      ██      ██ █████   ██ ██  ██    ██            ██ ██ ██  ██ ██    ██    
+██           ██ ██      ██      ██ ██      ██  ██ ██    ██            ██ ██  ██ ██ ██    ██    
+██      ███████  ██████ ███████ ██ ███████ ██   ████    ██    ███████ ██ ██   ████ ██    ██    
+Start the pubsub client for the Twitch channel
+https://twitchio.dev/en/stable/exts/pubsub.html
+"""
 try:
-    bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
-    bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
-                                                      channel_id=int(bot_join_user_result_set['broadcaster_id'])))
+    response = user_table.get_item(
+        Key={
+            'id': int(settings.BOT_JOIN_CHANNEL_ID)
+        }
+    )
+    channel_user = response['Item']
+    bot.loop.run_until_complete(bot.__psclient_init__(user_token=channel_user.get('access_token'),
+                                                      channel_id=int(channel_user.get('id'))))
 except IndexError:
-    start_threading_server()
-    bot_join_user_result_set = [row for row in db.fetch_user(broadcaster_login=settings.BOT_JOIN_CHANNEL)][0]
-    bot.loop.run_until_complete(bot.__psclient_init__(user_token=bot_join_user_result_set['access_token'],
-                                                      channel_id=int(bot_join_user_result_set['broadcaster_id'])))
+    print(f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{settings.BOT_JOIN_CHANNEL}{Fore.RED}!"
+          f"{Style.RESET_ALL}")
+    exit(0)
 
-# start the event subscription client
+"""
+███████ ███████  ██████ ██      ██ ███████ ███    ██ ████████         ██ ███    ██ ██ ████████ 
+██      ██      ██      ██      ██ ██      ████   ██    ██            ██ ████   ██ ██    ██    
+█████   ███████ ██      ██      ██ █████   ██ ██  ██    ██            ██ ██ ██  ██ ██    ██    
+██           ██ ██      ██      ██ ██      ██  ██ ██    ██            ██ ██  ██ ██ ██    ██    
+███████ ███████  ██████ ███████ ██ ███████ ██   ████    ██    ███████ ██ ██   ████ ██    ██    
+Start the eventsub client for the Twitch channel
+https://twitchio.dev/en/stable/exts/eventsub.html
+
+"""
 bot.loop.run_until_complete(bot.__esclient_init__())
+
+"""
+██████   ██████  ████████      ██████  ██████  ███    ███ ███    ███  █████  ███    ██ ██████  ███████
+██   ██ ██    ██    ██        ██      ██    ██ ████  ████ ████  ████ ██   ██ ████   ██ ██   ██ ██     
+██████  ██    ██    ██        ██      ██    ██ ██ ████ ██ ██ ████ ██ ███████ ██ ██  ██ ██   ██ ███████
+██   ██ ██    ██    ██        ██      ██    ██ ██  ██  ██ ██  ██  ██ ██   ██ ██  ██ ██ ██   ██      ██
+██████   ██████     ██         ██████  ██████  ██      ██ ██      ██ ██   ██ ██   ████ ██████  ███████
+Start the eventsub client for the Twitch channel
+https://twitchio.dev/en/stable/exts/commands.html
+"""
 
 
 @bot.event()
@@ -134,6 +192,8 @@ async def event_error(error: Exception, data: Optional[str] = None):
 @bot.event()
 async def event_channel_join_failure(channel: str):
     print(f"{Fore.RED}Bot failed to join {Fore.MAGENTA}{channel}{Fore.RED} channel!{Style.RESET_ALL}")
+    bot._http.app_token = bot._http.token
+    await bot.join_channels(list(channel))
 
 
 @bot.event()
@@ -300,9 +360,10 @@ async def event_eventsub_notification_raid(payload: eventsub.NotificationEvent) 
           f"{event_string}{Style.RESET_ALL}")
 
     # Log the raid occurrence
-    db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
-                        receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
-                        viewer_count=payload.data.viewer_count)
+    # TODO: Replace with dynamodb
+    # db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
+    #                     receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
+    #                     viewer_count=payload.data.viewer_count)
     # Respond to the raid
     broadcaster = list(filter(lambda x: x.id == payload.data.reciever.id, bot.channel_broadcasters))[0]
 
@@ -534,6 +595,3 @@ async def event_eventsub_notification_channel_charity_donate(payload: eventsub.C
                                         f"can learn more about the charity here: {payload.charity_website}")
 
 bot.run()
-
-db.backup_to_disk()
-db.close()

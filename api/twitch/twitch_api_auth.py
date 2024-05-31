@@ -137,7 +137,7 @@ class TwitchApiAuth:
             print(f"{Fore.RED}Invalid access token: {Fore.MAGENTA}{json.dumps(data)}{Fore.RED}.{Style.RESET_ALL}")
             return False
         if status == 200:
-            print(f"{Fore.GREEN}Valid access token: {Fore.MAGENTA}{json.dumps(data)}{Fore.GREEN}.{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Valid access token for user: {Fore.MAGENTA}{data.get('login')}{Fore.GREEN}.{Style.RESET_ALL}")
             return True
 
     async def get_users(self, access_token: str, ids=Optional[int], logins=Optional[str]):
