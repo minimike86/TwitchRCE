@@ -18,7 +18,7 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `!virustotal <hash>` <br/>_OR_ `!virustotal <url>`                                                                            | Lookup a hash or url report on virustotal                                                                                                               | 500 requests per day, and a rate of 4 requests per minute |
 </details>
 
-### RCE Cog Commands
+### RCE Cog Commands [DISABLED PENDING AWS MIGRATION]
 <details><summary>Show/Hide RCE Cog Commands</summary>
 
 | Command                                      | Outcome                                                               | Condition                                                                               |
@@ -27,7 +27,7 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `killmyshell` _**[REDEMPTION]**_             | Closes the last opened [qterminal](https://github.com/lxqt/qterminal) | A qterminal window is already open                                                      |
 </details>
 
-### VIP Cog Commands
+### VIP Cog Commands [DISABLED PENDING AWS MIGRATION]
 <details><summary>Show/Hide VIP Cog Commands</summary>
 
 | Command                              | Outcome                                                     | Condition                                                                                        |
@@ -35,7 +35,7 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `add_channel_vip` _**[REDEMPTION]**_ | Adds the redeemer as a VIP, and auto-fulfill the redemption | Broadcaster has spare VIP slots <br/>_AND_ Redeemer does not have a `Moderator` or a `VIP` role. |
 </details>
 
-### User Specific Cog Commands
+### User Specific Cog Commands [DISABLED PENDING AWS MIGRATION]
 <details><summary>Show/Hide User Specific Cog Commands</summary>
 
 | Command                                                        | Outcome                                 | Condition                             |
@@ -46,7 +46,7 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | `lottie` <br/>_OR_ `lottiekins`                                | Triggers a user specific sound command  | Author in `lottiekins`, `msec`        |
 </details>
 
-### Sound Cog Commands
+### Sound Cog Commands [DISABLED PENDING AWS MIGRATION]
 <details><summary>Show/Hide Sound Cog Commands</summary>
 
 | Command         | Outcome                                                     | Condition |
@@ -138,11 +138,9 @@ Twitch Chat Bot that allows viewers to run arbitrary code on broadcasters machin
 | CLIENT_ID=           | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
 | CLIENT_SECRET=       | string | *[From Twitch Developer Application](https://dev.twitch.tv/console/apps)*                  |
 | VIRUS_TOTAL_API_KEY= | string | *[From VirusTotal Community](https://developers.virustotal.com/reference/getting-started)* |
-| DATABASE_FILENAME    | string | /home/username/TwitchRCE/db/twitchrce.sqlite                                               |
-| AUTH_URI_PORT=       | int    | 3000                                                                                       |
-| EVENTSUB_URI_PORT=   | int    | 8080                                                                                       |
-| BOT_USERNAME=        | string | msec_bot                                                                                   |
+| BOT_USER_ID=         | string | 123456                                                                                     |
 | BOT_JOIN_CHANNEL=    | string | msec                                                                                       |
+| BOT_JOIN_CHANNEL_ID= | string | 654321                                                                                     |
 | MAX_VIP_SLOTS=       | int    | 20                                                                                         |
 
 ### RCECog Allow List
@@ -154,22 +152,6 @@ CMD_ALLOW_LIST = ['aux', 'cat', 'echo', 'grep', 'id', 'ifconfig', 'ls', 'netstat
 
 Expect some kind of malicious code to make it through if you leave the RCECog enabled! :)
 
-</details>
-
-## Ngrok Config | [Ngrok Tunnel Definition Docs](https://ngrok.com/docs/ngrok-agent/config#tunnel-definitions)
-<details><summary>Show/Hide Ngrok Config</summary>
-
-* Add a `auth` and `eventsub` tunnel configuration(s) to your `ngrok.yml` file
-
-```
-tunnels:
-  auth:
-    addr: 3000
-    proto: http
-  eventsub:
-    addr: 8080
-    proto: http
-```
 </details>
 
 Please help me expand the bots functionality by forking the repo and submitting a PR!
