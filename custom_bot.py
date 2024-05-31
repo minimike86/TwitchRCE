@@ -1,11 +1,10 @@
 import json
 import re
 import random
-from functools import wraps
+
 from typing import List, Optional
 from colorama import Fore, Style
 
-from circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 import settings
 
 import twitchio
@@ -45,57 +44,10 @@ class Bot(commands.Bot):
         from cogs.vip import VIPCog
         self.add_cog(VIPCog(self))
 
-    @staticmethod
-    def circuit_breaker(max_failures: int, reset_timeout: int):
-        breaker = CircuitBreaker(max_failures=max_failures, reset_timeout=reset_timeout)
-
-        def decorator(func):
-            @wraps(func)
-            async def wrapper(self, *args, **kwargs):
-                while True:
-                    try:
-                        result = await breaker.execute(lambda: func(self, *args, **kwargs))
-                        return result
-                    except twitchio.errors.Unauthorized:
-                        print(
-                            f"{Fore.RED}{settings.BOT_USER_ID} token is unauthorized. "
-                            f"Refreshing token.{Style.RESET_ALL}")
-                        await self.validate_token(login=settings.BOT_USER_ID)
-                    except twitchio.errors.HTTPException as error:
-                        print(f"{Fore.RED}Failed to reach Twitch API. Error: '{error}'.{Style.RESET_ALL}")
-                    except CircuitBreakerOpenError:
-                        print(f"{Fore.RED}CircuitBreaker is open. Stopping attempts to call API.{Style.RESET_ALL}")
-                        break
-
-            return wrapper
-
-        return decorator
-
     async def update_bot_http_token(self, token):
         """ updates the bots http client token """
         super()._http.token = token
 
-    # async def __channel_broadcasters_init__(self):
-    #     """ get broadcasters objects for every user_login, you need these to send messages """
-    #     user_login_result_set = self.database.fetch_all_user_logins()
-    #     user_logins: list[str] = [row['broadcaster_login'] for row in user_login_result_set]
-    #     # Make sure settings.BOT_USER_ID is validated first as it sets the bot nick
-    #     user_logins.remove(settings.BOT_USER_ID)
-    #     user_logins.insert(0, settings.BOT_USER_ID)
-    #     for login in user_logins:
-    #         print(f"{Fore.RED}Validating user token for {login}{Style.RESET_ALL}")
-    #         await self.validate_token(login)
-    #
-    #     user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=user_logins)
-    #     broadcasters: List[PartialUser] = []
-    #     try:
-    #         for user in user_data:
-    #             broadcasters.append(await PartialUser(http=self._http, id=user['id'], name=user['login']).fetch())
-    #     except twitchio.errors.Unauthorized as error:
-    #         print(f"{Fore.RED}Unauthorized: {error}{Style.RESET_ALL}")
-    #     self.channel_broadcasters = broadcasters
-
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def __validate__(self, user_token: str):
         validate_result = await self._http.validate(token=user_token)
         print(f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}")
@@ -105,6 +57,8 @@ class Bot(commands.Bot):
             pubsub.channel_points(user_token)[channel_id],
         ]
         await self.psclient.subscribe_topics(topics)
+        print(f'{Fore.RED}Subscribing to psclient topics for '
+              f'{Fore.MAGENTA}{channel_id}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
     async def __esclient_init__(self) -> None:
         await self.delete_all_event_subscriptions()
@@ -119,7 +73,7 @@ class Bot(commands.Bot):
 
     async def subscribe_channel_events(self, broadcasters: List[User]):
         for broadcaster in broadcasters:
-            print(f'{Fore.RED}Subscribing to events for '
+            print(f'{Fore.RED}Subscribing to esclient events for '
                   f'{Fore.MAGENTA}{broadcaster.name}{Fore.RED}\'s channel.{Style.RESET_ALL}')
 
             try:
@@ -254,8 +208,8 @@ class Bot(commands.Bot):
                       f"as bot user: {Fore.MAGENTA}{self.nick}{Fore.BLUE} "
                       f"({Fore.MAGENTA}ID: {self.user_id}{Fore.BLUE})!{Style.RESET_ALL}")
                 # uncomment below to say in chat when the bot joins
-                await channel.send(f'Logged into channel(s): {channel.name}, as bot user: '
-                                   f'{self.nick} (ID: {self.user_id})')
+                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: '
+                #                    f'{self.nick} (ID: {self.user_id})')
 
             # By default, turn on the sound and user commands
             from cogs.ascii_cog import AsciiCog
@@ -314,7 +268,6 @@ class Bot(commands.Bot):
                                            token=self.user_token)
             print(f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}")
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
         """ deletes all custom rewards (API limits deletes to those created by the bot)
             Requires a user access token that includes the channel:manage:redemptions scope. """
@@ -382,7 +335,6 @@ class Bot(commands.Bot):
             elif broadcaster is not None and hasattr(broadcaster.channel, 'send'):
                 await broadcaster.channel.send(''.join(message))
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def post_chat_announcement(self, token: str, broadcaster_id: str, message: str, moderator_id: str,
                                      color: str):
         """ Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary """
@@ -392,7 +344,6 @@ class Bot(commands.Bot):
                                                 moderator_id=moderator_id,
                                                 color=color)
 
-    @circuit_breaker(max_failures=3, reset_timeout=10)
     async def broadcaster_shoutout(self,
                                    broadcaster: PartialUser | User,
                                    token: str,

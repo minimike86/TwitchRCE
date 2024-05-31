@@ -46,21 +46,20 @@ async def check_valid_token(user: any) -> bool:
 
 
 async def refresh_user_token(user: any) -> str:
-    auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user['refresh_token'])
+    auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user.get('refresh_token'))
     try:
         # Insert the item
-        user_table.put_item(Item={
-            'access_token': auth_result['access_token'],
-            'client_id': settings.CLIENT_ID,
-            'expires_in': auth_result['expires_in'],
-            'login': user['broadcaster_login'],
-            'email': user['email'],
-            'refresh_token': auth_result['refresh_token'],
-            'scopes': auth_result['scope'],
-            'token_type': 'bearer',
-            'user_id': user['broadcaster_id']
-        })
-        print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['broadcaster_login']}{Fore.RED}!"
+        user_table.update_item(
+            Key={'id': user.get('id')},
+            UpdateExpression='set access_token=:a, refresh_token=:r, expires_in=:e',
+            ExpressionAttributeValues={
+                ":a": auth_result.get('access_token'),
+                ":r": auth_result.get('refresh_token'),
+                ":e": auth_result.get('expires_in')
+            },
+            ReturnValues="UPDATED_NEW",
+        )
+        print(f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['login']}{Fore.RED}!"
               f"{Style.RESET_ALL}")
     except (NoCredentialsError, PartialCredentialsError):
         print("Credentials not available")
@@ -131,9 +130,6 @@ bot = Bot(app_access_token=app_access_token,
           eventsub_public_url='https://ec2-3-9-179-105.eu-west-2.compute.amazonaws.com/')
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
-
-# preload broadcasters objects
-# bot.loop.run_until_complete(bot.__channel_broadcasters_init__())
 
 """
 ██████  ███████  ██████ ██      ██ ███████ ███    ██ ████████         ██ ███    ██ ██ ████████ 
