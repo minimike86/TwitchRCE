@@ -133,7 +133,7 @@ public_dns = response['Reservations'][0]['Instances'][0]['PublicDnsName']
 bot = Bot(app_access_token=app_access_token,
           user_token=bot_user.get('access_token'),
           initial_channels=[settings.BOT_JOIN_CHANNEL],
-          eventsub_public_url=public_dns)
+          eventsub_public_url=f"https://{public_dns}")
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
 
