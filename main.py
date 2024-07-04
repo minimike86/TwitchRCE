@@ -37,6 +37,7 @@ async def get_app_token() -> str:
     return client_creds_grant_flow['access_token']
 
 
+# TODO: Replace with lambda calls
 async def check_valid_token(user: any) -> bool:
     is_valid_token = await twitch_api_auth_http.validate_token(access_token=user.get('access_token'))
     if not is_valid_token:
@@ -45,6 +46,7 @@ async def check_valid_token(user: any) -> bool:
     return is_valid_token
 
 
+# TODO: Replace with lambda calls
 async def refresh_user_token(user: any) -> str:
     auth_result = await twitch_api_auth_http.refresh_access_token(refresh_token=user.get('refresh_token'))
     try:
@@ -123,11 +125,15 @@ except IndexError:
           f"{Style.RESET_ALL}")
     exit(0)
 
+ec2 = boto3.client('ec2')
+response = ec2.describe_instances(InstanceIds=['i-0100638f13e5451d8'])
+public_dns = response['Reservations'][0]['Instances'][0]['PublicDnsName']
+
 # Create a bot from your twitch client credentials
 bot = Bot(app_access_token=app_access_token,
           user_token=bot_user.get('access_token'),
           initial_channels=[settings.BOT_JOIN_CHANNEL],
-          eventsub_public_url='https://ec2-3-9-179-105.eu-west-2.compute.amazonaws.com/')
+          eventsub_public_url=public_dns)
 bot.from_client_credentials(client_id=settings.CLIENT_ID,
                             client_secret=settings.CLIENT_SECRET)
 
