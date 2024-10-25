@@ -50,7 +50,7 @@ jobs:
           sortPaths: "."
 
       - name: Output isort summary
-        run: echo ${{isort-result}} >> $GITHUB_STEP_SUMMARY
+        run: echo ${{steps.isort.outputs.isort-result}} >> $GITHUB_STEP_SUMMARY
 
       - name: Run black
         uses: psf/black@stable
