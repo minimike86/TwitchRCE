@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "twitchrce"
+version = "0.1.0"
+description = "Twitch chat bot that allows RCE on broadcasters machine."
+authors = ["MSec <mich@elwarner.co.uk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+python-decouple = "^3.8"
+colorama = "^0.4.6"
+nest-asyncio = "^1.6.0"
+boto3 = "^1.35.48"
+twitchio = "^2.10.0"
+vt-py = "^0.18.4"
+
+[tool.poetry.group.dev.dependencies]
+setuptools = "^75.2.0"
+pytest = "^8.3.3"
+pytest-mock = "^3.14.0"
+black = "^24.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
