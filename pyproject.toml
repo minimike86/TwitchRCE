@@ -19,6 +19,7 @@ vt-py = "^0.18.4"
 setuptools = "^75.2.0"
 pytest = "^8.3.3"
 pytest-mock = "^3.14.0"
+black = "^24.10.0"
 six = "^1.16.0"
 
 [build-system]

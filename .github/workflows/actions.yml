@@ -38,7 +38,7 @@ jobs:
         with:
           options: "--check --diff --verbose --color"
           src: "."
-          use_pyproject: true
+          summary: true
 
   tests:
     name: Test
