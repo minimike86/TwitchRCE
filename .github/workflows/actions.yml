@@ -31,7 +31,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          poetry install --all
 
       - name: Run black
         uses: psf/black@stable
@@ -43,6 +43,7 @@ jobs:
   tests:
     name: Test
     runs-on: ubuntu-latest
+    needs: setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          poetry install --all
 
       - name: Run tests
         run: |
