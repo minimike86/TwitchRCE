@@ -6,6 +6,10 @@ env:
   CLIENT_ID: ${{ secrets.CLIENT_ID }}
   CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
   VIRUS_TOTAL_API_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY }}
+  BOT_USER_ID: ${{ vars.BOT_USER_ID }}
+  BOT_JOIN_CHANNEL: ${{ vars.BOT_JOIN_CHANNEL }}
+  BOT_JOIN_CHANNEL_ID: ${{ vars.BOT_JOIN_CHANNEL_ID }}
+  MAX_VIP_SLOTS: ${{ vars.MAX_VIP_SLOTS }}
 
 jobs:
   setup:
