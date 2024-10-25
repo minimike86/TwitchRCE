@@ -49,8 +49,9 @@ jobs:
           configuration: "--check-only --diff"
           sortPaths: "."
 
-      - name: Output isort summary
-        run: echo ${{steps.isort.outputs.isort-result}} >> $GITHUB_STEP_SUMMARY
+#      - name: Output isort summary
+#        run: |
+#          echo ${{steps.isort.outputs.isort-result}} >> $GITHUB_STEP_SUMMARY
 
       - name: Run black
         uses: psf/black@stable
@@ -86,4 +87,10 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run pytest
+          poetry run pytest | tee pytest_output.txt
+
+      - name: Display test results in summary
+        if: always()
+        run: |
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          cat pytest_output.txt >> $GITHUB_STEP_SUMMARY
