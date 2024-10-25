@@ -3,10 +3,13 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  lint:
+  setup:
+    name: Setup python
+
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup python
         uses: actions/setup-python@v5
@@ -31,10 +34,12 @@ jobs:
         run: |
           python -m poetry install
 
+  tests:
       - name: Run tests
         run: |
           python -m poetry run python -m pytest -sxv
 
+  lint:
       - name: Run black
         uses: psf/black@stable
         with:
