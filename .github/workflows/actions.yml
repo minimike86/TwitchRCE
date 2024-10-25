@@ -47,6 +47,7 @@ jobs:
         with:
           configuration: "--check-only --diff"
           sortPaths: "."
+        run: echo ${{isort-result}} >> $GITHUB_STEP_SUMMARY
 
       - name: Run black
         uses: psf/black@stable
