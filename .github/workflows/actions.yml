@@ -2,6 +2,10 @@ name: CI/CD Workflow
 
 on: [push, pull_request]
 
+env:
+  CLIENT_ID: ${{ secrets.CLIENT_ID }}
+  CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+
 jobs:
   setup:
     name: Build
