@@ -17,7 +17,8 @@ class TwitchApiAuth:
     async def client_credentials_grant_flow() -> dict:
         """
         The client credentials grant flow is meant only for server-to-server API requests that use an app access token.
-        To get an access token, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters as appropriate for your app.
+        To get an access token, send an HTTP POST request to https://id.twitch.tv/oauth2/token.
+        Set the following x-www-form-urlencoded parameters as appropriate for your app.
 
         Parameter	    Required?	Type	Description
         client_id	    Yes	        String	Your app’s registered client ID.
@@ -48,10 +49,11 @@ class TwitchApiAuth:
             return data
 
     @staticmethod
-    async def obtain_access_token(code: str, redirect_uri: str) -> str:
+    async def obtain_access_token(code: str, redirect_uri: str) -> dict:
         """
         https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow
-        To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters in the body of the POST.
+        To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token.
+        Set the following x-www-form-urlencoded parameters in the body of the POST.
 
         Parameter	    Required?	Type	Description
         client_id	    Yes	        String	Your app’s registered client ID.
