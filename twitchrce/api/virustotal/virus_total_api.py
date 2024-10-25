@@ -1,4 +1,5 @@
 import asyncio
+
 import vt
 
 from twitchrce.config import settings

@@ -1,17 +1,15 @@
 import json
-import re
 import random
-
+import re
 from typing import List, Optional
-from colorama import Fore, Style
-
-from twitchrce.config import settings
 
 import twitchio
-from twitchio import User, PartialUser
+from colorama import Fore, Style
+from twitchio import PartialUser, User
 from twitchio.ext import commands, eventsub, pubsub
 
-from api.virustotal.virus_total_api import VirusTotalApiClient
+from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
+from twitchrce.config import settings
 
 
 class Bot(commands.Bot):
@@ -42,11 +40,11 @@ class Bot(commands.Bot):
         self.death_count = {}
 
         """ load commands from cogsss """
-        from cogs.rce import RCECog
+        from twitchrce.cogs.rce import RCECog
 
         self.add_cog(RCECog(self))
 
-        from cogs.vip import VIPCog
+        from twitchrce.cogs.vip import VIPCog
 
         self.add_cog(VIPCog(self))
 

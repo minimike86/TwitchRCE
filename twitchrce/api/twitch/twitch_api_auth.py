@@ -1,9 +1,9 @@
 import asyncio
+import json
 from typing import Optional
-from colorama import Fore, Style
 
 import aiohttp
-import json
+from colorama import Fore, Style
 
 from twitchrce.config import settings
 
@@ -14,7 +14,7 @@ class TwitchApiAuth:
         self.loop = asyncio.get_event_loop()
 
     @staticmethod
-    async def client_credentials_grant_flow() -> str:
+    async def client_credentials_grant_flow() -> dict:
         """
         The client credentials grant flow is meant only for server-to-server API requests that use an app access token.
         To get an access token, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters as appropriate for your app.

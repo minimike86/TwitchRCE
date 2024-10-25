@@ -1,9 +1,9 @@
 import twitchio
 from twitchio.ext import commands
 
-# import soundfile as sf
-
 from twitchrce import custom_bot
+
+# import soundfile as sf
 
 
 class UserCog(commands.Cog):

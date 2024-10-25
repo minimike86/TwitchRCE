@@ -1,15 +1,13 @@
 import re
 import shlex
-import traceback
-import textwrap
-from colorama import Fore, Style
-
 import subprocess
-from subprocess import Popen, PIPE
-
+import textwrap
+import traceback
 from asyncio import CancelledError
+from subprocess import PIPE, Popen
 
 import twitchio
+from colorama import Fore, Style
 from twitchio import errors
 from twitchio.ext import commands, pubsub
 
