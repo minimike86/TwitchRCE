@@ -10,7 +10,7 @@ BOT_USER_ID = config("BOT_USER_ID")
 BOT_JOIN_CHANNEL = config("BOT_JOIN_CHANNEL")
 BOT_JOIN_CHANNEL_ID = config("BOT_JOIN_CHANNEL_ID")
 
-MAX_VIP_SLOTS = int(config("MAX_VIP_SLOTS", default=10))
+MAX_VIP_SLOTS = config("MAX_VIP_SLOTS", default=10)
 
 CMD_ALLOW_LIST = [
     "aux",

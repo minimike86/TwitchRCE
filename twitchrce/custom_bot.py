@@ -352,7 +352,7 @@ class Bot(commands.Bot):
         vips = await self._http.get_channel_vips(
             token=self.user_token, broadcaster_id=broadcaster.id, first=100
         )
-        if len(vips) < settings.MAX_VIP_SLOTS:
+        if len(vips) < int(settings.MAX_VIP_SLOTS):
             await self._http.create_reward(
                 broadcaster_id=broadcaster.id,
                 title="VIP",
