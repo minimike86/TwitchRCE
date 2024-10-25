@@ -43,10 +43,13 @@ jobs:
           poetry install --with dev
 
       - name: Run isort
+        id: isort
         uses: isort/isort-action@master
         with:
           configuration: "--check-only --diff"
           sortPaths: "."
+
+      - name: Output isort summary
         run: echo ${{isort-result}} >> $GITHUB_STEP_SUMMARY
 
       - name: Run black
