@@ -2,12 +2,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from twitchrce.main import get_app_token
-
 
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 async def test_get_app_token():
+    from twitchrce.main import get_app_token
+
     # Mock the response from client_credentials_grant_flow
     mock_response = {
         "access_token": "1234567890abcdef1234567890abcdef",

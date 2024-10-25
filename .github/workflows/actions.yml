@@ -87,10 +87,27 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run pytest | tee pytest_output.txt
+          poetry run pytest --tb=short | tee pytest_output.txt
 
       - name: Display test results in summary
         if: always()
         run: |
-          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎉 Test Summary Report 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | Test |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------ | ---- |" >> $GITHUB_STEP_SUMMARY
+
+          # Iterate through pytest output to generate a summary
+          while IFS= read -r line; do
+            if [[ $line == *"PASSED"* ]]; then
+              echo "| ✅ | $line |" >> $GITHUB_STEP_SUMMARY
+            elif [[ $line == *"FAILED"* ]]; then
+              echo "| ❌ | $line |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done < pytest_output.txt
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📜 Detailed Output 📜" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat pytest_output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
