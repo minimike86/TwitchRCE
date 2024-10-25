@@ -94,20 +94,21 @@ jobs:
         run: |
           echo "### 🎉 Test Summary Report 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Display results in table format
           echo "| Status | Test |" >> $GITHUB_STEP_SUMMARY
           echo "| ------ | ---- |" >> $GITHUB_STEP_SUMMARY
+          
+          # Determine the overall result
+          if grep -q "failed" pytest_output.txt; then
+            echo "| ❌ | Some tests failed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ✅ | All tests passed |" >> $GITHUB_STEP_SUMMARY
+          fi
 
-          # Iterate through pytest output to generate a summary
-          while IFS= read -r line; do
-            if [[ $line == *"PASSED"* ]]; then
-              echo "| ✅ | $line |" >> $GITHUB_STEP_SUMMARY
-            elif [[ $line == *"FAILED"* ]]; then
-              echo "| ❌ | $line |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done < pytest_output.txt
-
+          # Add full detailed output
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📜 Detailed Output 📜" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
           cat pytest_output.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
