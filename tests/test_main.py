@@ -5,7 +5,10 @@ import pytest
 
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-async def test_get_app_token():
+async def test_get_app_token(monkeypatch):
+    # monkeypatch.setenv('CLIENT_ID', 'client_id')
+    # monkeypatch.setenv('CLIENT_SECRET', 'client_secret')
+
     from twitchrce.main import get_app_token
 
     token = await get_app_token()
