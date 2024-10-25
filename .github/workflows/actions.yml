@@ -31,7 +31,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --all
+          poetry install --with dev
 
       - name: Run black
         uses: psf/black@stable
@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --all
+          poetry install --with dev
 
       - name: Run tests
         run: |
