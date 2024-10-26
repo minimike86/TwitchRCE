@@ -6,7 +6,7 @@ from twitchrce import custom_bot
 
 class AsciiCog(commands.Cog):
 
-    def __init__(self, bot: custom_bot.Bot):
+    def __init__(self, bot: custom_bot.CustomBot):
         self.bot = bot
 
     @commands.Cog.event()

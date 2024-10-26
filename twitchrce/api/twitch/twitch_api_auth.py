@@ -5,16 +5,16 @@ from typing import Optional
 import aiohttp
 from colorama import Fore, Style
 
-from twitchrce.config import settings
+from twitchrce.config import bot_config
 
 
 class TwitchApiAuth:
 
     def __init__(self):
+        self.config = bot_config.BotConfig().get_bot_config().get("twitch")
         self.loop = asyncio.get_event_loop()
 
-    @staticmethod
-    async def client_credentials_grant_flow() -> dict:
+    async def client_credentials_grant_flow(self) -> dict:
         """
         The client credentials grant flow is meant only for server-to-server API requests that use an app access token.
         To get an access token, send an HTTP POST request to https://id.twitch.tv/oauth2/token.
@@ -28,8 +28,8 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": settings.CLIENT_ID,
-            "client_secret": settings.CLIENT_SECRET,
+            "client_id": self.config.get("client_id"),
+            "client_secret": self.config.get("client_secret"),
             "grant_type": "client_credentials",
         }
         request_body = {}
@@ -48,8 +48,7 @@ class TwitchApiAuth:
             )  # : {json.dumps(data)}.")
             return data
 
-    @staticmethod
-    async def obtain_access_token(code: str, redirect_uri: str) -> dict:
+    async def obtain_access_token(self, code: str, redirect_uri: str) -> dict:
         """
         https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow
         To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token.
@@ -65,8 +64,8 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": settings.CLIENT_ID,
-            "client_secret": settings.CLIENT_SECRET,
+            "client_id": self.config.get("client_id"),
+            "client_secret": self.config.get("client_secret"),
             "code": code,
             "grant_type": "authorization_code",
             "redirect_uri": f"{redirect_uri}",
@@ -88,7 +87,8 @@ class TwitchApiAuth:
     async def refresh_access_token(self, refresh_token: str):
         """
         https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow
-        To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token. Set the following x-www-form-urlencoded parameters in the body of the POST.
+        To get the tokens, send an HTTP POST request to https://id.twitch.tv/oauth2/token.
+        Set the following x-www-form-urlencoded parameters in the body of the POST.
 
         Parameter	    Required?	Type	Description
         client_id	    Yes	        String	Your app’s registered client ID.
@@ -99,8 +99,8 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": settings.CLIENT_ID,
-            "client_secret": settings.CLIENT_SECRET,
+            "client_id": self.config.get("client_id"),
+            "client_secret": self.config.get("client_secret"),
             "grant_type": "refresh_token",
             "refresh_token": f"{refresh_token}",
         }
@@ -119,7 +119,8 @@ class TwitchApiAuth:
         if status == 200:
             return data
 
-    async def validate_token(self, access_token: str) -> bool:
+    @staticmethod
+    async def validate_token(access_token: str) -> bool:
         """
         https://dev.twitch.tv/docs/authentication/validate-tokens/
         WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens hourly as required.
@@ -157,7 +158,7 @@ class TwitchApiAuth:
         """
         url = "https://api.twitch.tv/helix/users"
         headers = {
-            "Client-Id": settings.CLIENT_ID,
+            "Client-Id": self.config.get("client_id"),
             "Authorization": f"Bearer {access_token}",
         }
         params = {}

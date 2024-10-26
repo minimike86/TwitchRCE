@@ -32,12 +32,6 @@ jobs:
         run: |
           poetry config virtualenvs.in-project true
 
-#      - name: Cache the virtualenv
-#        uses: actions/cache@v2
-#        with:
-#          path: .venv
-#          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
         run: |
           poetry install --with dev
@@ -48,10 +42,6 @@ jobs:
         with:
           configuration: "--check-only --diff"
           sortPaths: "."
-
-#      - name: Output isort summary
-#        run: |
-#          echo ${{steps.isort.outputs.isort-result}} >> $GITHUB_STEP_SUMMARY
 
       - name: Run black
         uses: psf/black@stable
@@ -85,6 +75,10 @@ jobs:
         run: |
           poetry install --with dev
 
+      - name: Run coverage
+        run: |
+          coverage run -m pytest | tee coverage_output.txt
+
       - name: Run tests
         run: |
           poetry run pytest --tb=short | tee pytest_output.txt
@@ -105,6 +99,13 @@ jobs:
           else
             echo "| ✅ | All tests passed |" >> $GITHUB_STEP_SUMMARY
           fi
+
+          # Add coverage output
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚧 Coverage Output 🚧" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat coverage_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
           # Add full detailed output
           echo "" >> $GITHUB_STEP_SUMMARY

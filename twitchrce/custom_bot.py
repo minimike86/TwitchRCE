@@ -9,10 +9,10 @@ from twitchio import PartialUser, User
 from twitchio.ext import commands, eventsub, pubsub
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
-from twitchrce.config import settings
+from twitchrce.config import bot_config
 
 
-class Bot(commands.Bot):
+class CustomBot(commands.Bot):
     """Custom twitchio bot class"""
 
     def __init__(
@@ -25,6 +25,8 @@ class Bot(commands.Bot):
         super().__init__(
             prefix="!", token=user_token, initial_channels=initial_channels
         )
+
+        self.config = bot_config.BotConfig().get_bot_config()
 
         self.app_access_token = app_access_token
         self.user_token = user_token
@@ -278,7 +280,11 @@ class Bot(commands.Bot):
     async def event_ready(self):
         if len(self.connected_channels) == 0:
             """Bot failed to join channel."""
-            await self.join_channels(channels=[settings.BOT_JOIN_CHANNEL])
+            await self.join_channels(
+                channels=[
+                    self.config.get("twitch").get("channel").get("bot_join_channel")
+                ]
+            )
 
         if len(self.connected_channels) >= 1:
             """Bot is logged into IRC and ready to do its thing."""
@@ -352,7 +358,9 @@ class Bot(commands.Bot):
         vips = await self._http.get_channel_vips(
             token=self.user_token, broadcaster_id=broadcaster.id, first=100
         )
-        if len(vips) < int(settings.MAX_VIP_SLOTS):
+        if len(vips) < int(
+            self.config.get("twitch").get("channel").get("max_vip_slots")
+        ):
             await self._http.create_reward(
                 broadcaster_id=broadcaster.id,
                 title="VIP",
@@ -553,7 +561,10 @@ class Bot(commands.Bot):
         if (
             ctx.author.is_broadcaster
             or int(ctx.author.id) == 125444292
-            and str(settings.BOT_JOIN_CHANNEL).lower() != param_username.lower()
+            and str(
+                self.config.get("twitch").get("channel").get("bot_join_channel")
+            ).lower()
+            != param_username.lower()
         ):  # stay connected to init channel
             await self.part_channels([param_username])
             # also remove event subs

@@ -12,14 +12,10 @@ from twitchio.ext import eventsub, pubsub
 from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
 from twitchrce.cogs.rce import RCECog
 from twitchrce.cogs.vip import VIPCog
-from twitchrce.config import settings
-from twitchrce.custom_bot import Bot
+from twitchrce.config import bot_config
+from twitchrce.custom_bot import CustomBot
 
 nest_asyncio.apply()
-
-# init asyncio
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 
 
 async def get_app_token() -> str:
@@ -63,8 +59,9 @@ async def refresh_user_token(user: any) -> str:
             f"{Fore.RED}Updated access and refresh token for {Fore.MAGENTA}{user['login']}{Fore.RED}!"
             f"{Style.RESET_ALL}"
         )
-    except (NoCredentialsError, PartialCredentialsError):
+    except (NoCredentialsError, PartialCredentialsError) as error:
         print("Credentials not available")
+        raise error
     return auth_result["access_token"]
 
 
@@ -77,12 +74,18 @@ async def refresh_user_token(user: any) -> str:
 Start the pubsub client for the Twitch channel
 """
 
-if __name__ == "__main__":
+dynamodb = boto3.resource("dynamodb")
+user_table = dynamodb.Table("MSecBot_User")
+
+
+async def setup_bot():
 
     print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
+    config = bot_config.BotConfig().get_bot_config()
 
-    dynamodb = boto3.resource("dynamodb")
-    user_table = dynamodb.Table("MSecBot_User")
+    # init asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     # fetch bot app token
     app_access_token = loop.run_until_complete(get_app_token())
@@ -90,7 +93,9 @@ if __name__ == "__main__":
     # fetch bot user token (refresh it if needed)
     bot_user = None
     try:
-        response = user_table.get_item(Key={"id": int(settings.BOT_USER_ID)})
+        response = user_table.get_item(
+            Key={"id": int(config.get("twitch").get("bot_user_id"))}
+        )
         bot_user = response.get("Item", 0)
         if not bot_user.get("access_token"):
 
@@ -116,7 +121,7 @@ if __name__ == "__main__":
 
             redirect_uri = "https://3yyduoz2ok.execute-api.eu-west-2.amazonaws.com/twitch/oauth2/authorization_code"
             authorization_url = (
-                f"https://id.twitch.tv/oauth2/authorize?client_id={settings.CLIENT_ID}"
+                f"https://id.twitch.tv/oauth2/authorize?client_id={config.get('twitch').get('client_id')}"
                 f"&force_verify=true"
                 f"&redirect_uri={redirect_uri}"
                 f"&response_type=code"
@@ -132,24 +137,27 @@ if __name__ == "__main__":
             loop.run_until_complete(check_valid_token(user=bot_user))
     except IndexError:
         print(
-            f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{settings.BOT_USER_ID}{Fore.RED}!"
+            f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{config.get('twitch').get('bot_user_id')}{Fore.RED}!"
             f"{Style.RESET_ALL}"
         )
         exit(0)
 
     ec2 = boto3.client("ec2")
-    response = ec2.describe_instances(InstanceIds=["i-0100638f13e5451d8"])
+    response = ec2.describe_instances(
+        InstanceIds=["i-0100638f13e5451d8"]
+    )  # TODO: Don't hardcode InstanceIds
     public_dns = response["Reservations"][0]["Instances"][0]["PublicDnsName"]
 
     # Create a bot from your twitchapi client credentials
-    bot = Bot(
+    bot = CustomBot(
         app_access_token=app_access_token,
         user_token=bot_user.get("access_token"),
-        initial_channels=[settings.BOT_JOIN_CHANNEL],
+        initial_channels=[config.get("twitch").get("bot_join_channel")],
         eventsub_public_url=f"https://{public_dns}",
     )
     bot.from_client_credentials(
-        client_id=settings.CLIENT_ID, client_secret=settings.CLIENT_SECRET
+        client_id=config.get("twitch").get("client_id"),
+        client_secret=config.get("twitch").get("client_secret"),
     )
 
     """
@@ -162,7 +170,9 @@ if __name__ == "__main__":
     https://twitchio.dev/en/stable/exts/pubsub.html
     """
     try:
-        response = user_table.get_item(Key={"id": int(settings.BOT_JOIN_CHANNEL_ID)})
+        response = user_table.get_item(
+            Key={"id": config.get("twitch").get("bot_join_channel_id")}
+        )
         channel_user = response["Item"]
         bot.loop.run_until_complete(
             bot.__psclient_init__(
@@ -172,7 +182,7 @@ if __name__ == "__main__":
         )
     except IndexError:
         print(
-            f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{settings.BOT_JOIN_CHANNEL}{Fore.RED}!"
+            f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{config.get('twitch').get('bot_join_channel')}{Fore.RED}!"
             f"{Style.RESET_ALL}"
         )
         exit(0)
@@ -316,7 +326,7 @@ if __name__ == "__main__":
             channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
             clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
             # Acknowledge raid and reply with a channel bio
-            await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
+            await bot.get_channel(config.get("twitch").get("bot_join_channel")).send(
                 f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!"
             )
             # shoutout the subscriber
@@ -370,7 +380,9 @@ if __name__ == "__main__":
             # Acknowledge raid and reply with a channel bio
             if len(channel) >= 1:
                 try:
-                    await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
+                    await bot.get_channel(
+                        config.get("twitch").get("bot_join_channel")
+                    ).send(
                         f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} "
                         f"subscription!"
                     )
@@ -382,9 +394,9 @@ if __name__ == "__main__":
             clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
             if len(clips) >= 1:
                 """check if sub is a streamer with clips on their channel and shoutout with clip player"""
-                await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
-                    f"!so {channel[0]['broadcaster_login']}"
-                )
+                await bot.get_channel(
+                    config.get("twitch").get("bot_join_channel")
+                ).send(f"!so {channel[0]['broadcaster_login']}")
                 await bot.announce_shoutout(
                     ctx=None,
                     broadcaster=payload.data.broadcaster,
@@ -425,7 +437,9 @@ if __name__ == "__main__":
             # Acknowledge raid and reply with a channel bio
             if len(channel) >= 1:
                 try:
-                    await bot.get_channel(settings.BOT_JOIN_CHANNEL).send(
+                    await bot.get_channel(
+                        config.get("twitch").get("bot_join_channel")
+                    ).send(
                         f"Congratulations @{channel[0]['broadcaster_login']} on receiving a "
                         f"gifted tier {int(payload.data.tier / 1000)} subscription!"
                     )
@@ -714,4 +728,9 @@ if __name__ == "__main__":
             f"can learn more about the charity here: {payload.charity_website}"
         )
 
-    bot.run()
+    if __name__ == "__main__":
+        bot.run()
+
+
+if __name__ == "__main__":
+    setup_bot()

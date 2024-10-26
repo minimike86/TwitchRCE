@@ -12,12 +12,12 @@ from twitchio import errors
 from twitchio.ext import commands, pubsub
 
 from twitchrce import custom_bot
-from twitchrce.config import settings
+from twitchrce.config import bot_config
 
 
 class RCECog(commands.Cog):
 
-    def __init__(self, bot: custom_bot.Bot):
+    def __init__(self, bot: custom_bot.CustomBot):
         self.bot = bot
 
     @commands.Cog.event()
