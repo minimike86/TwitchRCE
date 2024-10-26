@@ -74,13 +74,15 @@ async def refresh_user_token(user: any) -> str:
 Start the pubsub client for the Twitch channel
 """
 
-dynamodb = boto3.resource("dynamodb")
+BOT_CONFIG = bot_config.BotConfig().get_bot_config()
+dynamodb = boto3.resource(
+    "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
+)
 user_table = dynamodb.Table("MSecBot_User")
 
 
 async def setup_bot():
     print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
-    config = bot_config.BotConfig().get_bot_config()
 
     # init asyncio
     loop = asyncio.new_event_loop()
@@ -93,7 +95,7 @@ async def setup_bot():
     bot_user = None
     try:
         response = user_table.get_item(
-            Key={"id": int(config.get("twitch").get("bot_user_id"))}
+            Key={"id": int(BOT_CONFIG.get("twitch").get("bot_user_id"))}
         )
         bot_user = response.get("Item", 0)
         if not bot_user.get("access_token"):
@@ -120,7 +122,7 @@ async def setup_bot():
 
             redirect_uri = "https://3yyduoz2ok.execute-api.eu-west-2.amazonaws.com/twitch/oauth2/authorization_code"
             authorization_url = (
-                f"https://id.twitch.tv/oauth2/authorize?client_id={config.get('twitch').get('client_id')}"
+                f"https://id.twitch.tv/oauth2/authorize?client_id={BOT_CONFIG.get('twitch').get('client_id')}"
                 f"&force_verify=true"
                 f"&redirect_uri={redirect_uri}"
                 f"&response_type=code"
@@ -136,12 +138,12 @@ async def setup_bot():
             loop.run_until_complete(check_valid_token(user=bot_user))
     except IndexError:
         print(
-            f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{config.get('twitch').get('bot_user_id')}{Fore.RED}!"
+            f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_user_id')}{Fore.RED}!"
             f"{Style.RESET_ALL}"
         )
         exit(0)
 
-    ec2 = boto3.client("ec2", region_name=config.get("aws").get("region_name"))
+    ec2 = boto3.client("ec2", region_name=BOT_CONFIG.get("aws").get("region_name"))
     response = ec2.describe_instances(
         InstanceIds=["i-0100638f13e5451d8"]
     )  # TODO: Don't hardcode InstanceIds
@@ -151,12 +153,12 @@ async def setup_bot():
     bot = CustomBot(
         app_access_token=app_access_token,
         user_token=bot_user.get("access_token"),
-        initial_channels=[config.get("twitch").get("bot_join_channel")],
+        initial_channels=[BOT_CONFIG.get("twitch").get("bot_join_channel")],
         eventsub_public_url=f"https://{public_dns}",
     )
     bot.from_client_credentials(
-        client_id=config.get("twitch").get("client_id"),
-        client_secret=config.get("twitch").get("client_secret"),
+        client_id=BOT_CONFIG.get("twitch").get("client_id"),
+        client_secret=BOT_CONFIG.get("twitch").get("client_secret"),
     )
 
     """
@@ -170,7 +172,7 @@ async def setup_bot():
     """
     try:
         response = user_table.get_item(
-            Key={"id": config.get("twitch").get("bot_join_channel_id")}
+            Key={"id": BOT_CONFIG.get("twitch").get("bot_join_channel_id")}
         )
         channel_user = response["Item"]
         bot.loop.run_until_complete(
@@ -181,7 +183,7 @@ async def setup_bot():
         )
     except IndexError:
         print(
-            f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{config.get('twitch').get('bot_join_channel')}{Fore.RED}!"
+            f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_join_channel')}{Fore.RED}!"
             f"{Style.RESET_ALL}"
         )
         exit(0)
@@ -325,7 +327,9 @@ async def setup_bot():
             channel = await bot._http.get_channels(broadcaster_id=payload.data.user.id)
             clips = await bot._http.get_clips(broadcaster_id=payload.data.user.id)
             # Acknowledge raid and reply with a channel bio
-            await bot.get_channel(config.get("twitch").get("bot_join_channel")).send(
+            await bot.get_channel(
+                BOT_CONFIG.get("twitch").get("bot_join_channel")
+            ).send(
                 f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!"
             )
             # shoutout the subscriber
@@ -380,7 +384,7 @@ async def setup_bot():
             if len(channel) >= 1:
                 try:
                     await bot.get_channel(
-                        config.get("twitch").get("bot_join_channel")
+                        BOT_CONFIG.get("twitch").get("bot_join_channel")
                     ).send(
                         f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} "
                         f"subscription!"
@@ -394,7 +398,7 @@ async def setup_bot():
             if len(clips) >= 1:
                 """check if sub is a streamer with clips on their channel and shoutout with clip player"""
                 await bot.get_channel(
-                    config.get("twitch").get("bot_join_channel")
+                    BOT_CONFIG.get("twitch").get("bot_join_channel")
                 ).send(f"!so {channel[0]['broadcaster_login']}")
                 await bot.announce_shoutout(
                     ctx=None,
@@ -437,7 +441,7 @@ async def setup_bot():
             if len(channel) >= 1:
                 try:
                     await bot.get_channel(
-                        config.get("twitch").get("bot_join_channel")
+                        BOT_CONFIG.get("twitch").get("bot_join_channel")
                     ).send(
                         f"Congratulations @{channel[0]['broadcaster_login']} on receiving a "
                         f"gifted tier {int(payload.data.tier / 1000)} subscription!"
