@@ -79,7 +79,6 @@ user_table = dynamodb.Table("MSecBot_User")
 
 
 async def setup_bot():
-
     print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
     config = bot_config.BotConfig().get_bot_config()
 
@@ -142,7 +141,7 @@ async def setup_bot():
         )
         exit(0)
 
-    ec2 = boto3.client("ec2")
+    ec2 = boto3.client("ec2", region_name=config.get("aws").get("region_name"))
     response = ec2.describe_instances(
         InstanceIds=["i-0100638f13e5451d8"]
     )  # TODO: Don't hardcode InstanceIds

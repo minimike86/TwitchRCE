@@ -7,6 +7,7 @@ class BotConfig:
         self.CLIENT_ID = config("CLIENT_ID")
         self.CLIENT_SECRET = config("CLIENT_SECRET")
         self.VIRUS_TOTAL_API_KEY = config("VIRUS_TOTAL_API_KEY")
+        self.REGION_NAME = config("REGION_NAME")
         self.BOT_USER_ID = config("BOT_USER_ID")
         self.BOT_JOIN_CHANNEL_ID = config("BOT_JOIN_CHANNEL_ID")
         self.BOT_JOIN_CHANNEL = config("BOT_JOIN_CHANNEL")
@@ -30,6 +31,7 @@ class BotConfig:
 
     def get_bot_config(self) -> dict:
         return {
+            "aws": {"region_name": self.REGION_NAME},
             "twitch": {
                 "client_id": self.CLIENT_ID,
                 "client_secret": self.CLIENT_SECRET,

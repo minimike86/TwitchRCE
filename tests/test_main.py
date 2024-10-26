@@ -78,7 +78,7 @@ async def test_check_valid_token_is_valid(mocker):
 def test_check_valid_token_is_invalid(mocker, capfd):
     from twitchrce.main import check_valid_token
 
-    BOT_CONFIG = bot_config.BotConfig().get_bot_config().get("twitch")
+    BOT_CONFIG = bot_config.BotConfig().get_bot_config()
 
     mock_validate_token = mocker.patch(
         "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.validate_token"
@@ -90,7 +90,9 @@ def test_check_valid_token_is_invalid(mocker, capfd):
     )
     mock_refresh_access_token.return_value = MOCK_REFRESH_ACCESS_TOKEN_RESPONSE_SUCCESS
 
-    mock_dynamodb = boto3.resource("dynamodb", region_name="us-west-2")
+    mock_dynamodb = boto3.resource(
+        "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
+    )
     mock_table_name = "user"
     mock_dynamodb.create_table(
         TableName=mock_table_name,
@@ -110,7 +112,7 @@ def test_check_valid_token_is_invalid(mocker, capfd):
         Item={
             "id": "123456",
             "access_token": "access_token_abc123",
-            "client_id": BOT_CONFIG.get("client_id"),
+            "client_id": BOT_CONFIG.get("twitch").get("client_id"),
             "expires_in": 12345,
             "login": "username_bot",
             "refresh_token": "refresh_token_abc123",
@@ -199,7 +201,9 @@ def test_main(mocker, capfd):
     )
     mock_validate_token.return_value = True
 
-    mock_dynamodb = boto3.resource("dynamodb", region_name="us-west-2")
+    mock_dynamodb = boto3.resource(
+        "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
+    )
     mock_table_name = "user"
     mock_dynamodb.create_table(
         TableName=mock_table_name,
