@@ -38,6 +38,9 @@ def test_config(monkeypatch):
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
     assert BOT_CONFIG.get("twitch").get("client_id") == "12345"
     assert BOT_CONFIG.get("twitch").get("client_secret") == "abcde"
+    assert BOT_CONFIG.get("aws").get("aws_region") == "eu-west-2"
+    assert BOT_CONFIG.get("aws").get("aws_default_region") == "eu-west-2"
+    assert BOT_CONFIG.get("aws").get("region_name") == "eu-west-2"
     assert (
         BOT_CONFIG.get("twitch").get("channel").get("bot_join_channel_id") == "123456"
     )

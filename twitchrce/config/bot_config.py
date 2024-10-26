@@ -7,7 +7,9 @@ class BotConfig:
         self.CLIENT_ID = config("CLIENT_ID")
         self.CLIENT_SECRET = config("CLIENT_SECRET")
         self.VIRUS_TOTAL_API_KEY = config("VIRUS_TOTAL_API_KEY")
-        self.REGION_NAME = config("REGION_NAME")
+        self.AWS_REGION = config("AWS_REGION", default="eu-west-2")
+        self.AWS_DEFAULT_REGION = config("AWS_DEFAULT_REGION", default="eu-west-2")
+        self.REGION_NAME = config("REGION_NAME", default="eu-west-2")
         self.BOT_USER_ID = config("BOT_USER_ID")
         self.BOT_JOIN_CHANNEL_ID = config("BOT_JOIN_CHANNEL_ID")
         self.BOT_JOIN_CHANNEL = config("BOT_JOIN_CHANNEL")
@@ -31,7 +33,11 @@ class BotConfig:
 
     def get_bot_config(self) -> dict:
         return {
-            "aws": {"region_name": self.REGION_NAME},
+            "aws": {
+                "aws_region": self.AWS_REGION,
+                "aws_default_region": self.AWS_DEFAULT_REGION,
+                "region_name": self.REGION_NAME,
+            },
             "twitch": {
                 "client_id": self.CLIENT_ID,
                 "client_secret": self.CLIENT_SECRET,
