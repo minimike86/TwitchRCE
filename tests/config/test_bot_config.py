@@ -8,6 +8,8 @@ def set_environment_variables(monkeypatch):
     # Set default environment variables for all tests
     monkeypatch.setenv("CLIENT_ID", "12345")
     monkeypatch.setenv("CLIENT_SECRET", "abcde")
+    monkeypatch.setenv("AWS_REGION", "eu-west-2")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
     monkeypatch.setenv("REGION_NAME", "eu-west-2")
     monkeypatch.setenv("BOT_USER_ID", "123456")
     monkeypatch.setenv("BOT_JOIN_CHANNEL", "#general")
