@@ -156,6 +156,7 @@ async def setup_bot():
         initial_channels=[BOT_CONFIG.get("twitch").get("bot_join_channel")],
         eventsub_public_url=f"https://{public_dns}",
     )
+    # TODO: DeprecationWarning: from_client_credentials is not suitable for Bots.
     bot.from_client_credentials(
         client_id=BOT_CONFIG.get("twitch").get("client_id"),
         client_secret=BOT_CONFIG.get("twitch").get("client_secret"),
