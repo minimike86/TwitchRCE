@@ -82,7 +82,7 @@ jobs:
 
       - name: Run tests
         run: |
-          poetry run pytest --tb=short --disable-pytest-warnings | tee pytest_output.txt
+          poetry run pytest --disable-pytest-warnings | tee pytest_output.txt
 
       - name: Display test results in summary
         if: always()
