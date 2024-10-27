@@ -6,14 +6,18 @@ class BotConfig:
     def __init__(self):
         self.CLIENT_ID = config("CLIENT_ID")
         self.CLIENT_SECRET = config("CLIENT_SECRET")
-        self.VIRUS_TOTAL_API_KEY = config("VIRUS_TOTAL_API_KEY")
-        self.AWS_REGION = config("AWS_REGION", default="eu-west-2")
-        self.AWS_DEFAULT_REGION = config("AWS_DEFAULT_REGION", default="eu-west-2")
-        self.REGION_NAME = config("REGION_NAME", default="eu-west-2")
         self.BOT_USER_ID = config("BOT_USER_ID")
         self.BOT_JOIN_CHANNEL_ID = config("BOT_JOIN_CHANNEL_ID")
         self.BOT_JOIN_CHANNEL = config("BOT_JOIN_CHANNEL")
         self.MAX_VIP_SLOTS = config("MAX_VIP_SLOTS", default=10)
+        self.VIRUS_TOTAL_API_KEY = config("VIRUS_TOTAL_API_KEY")
+        self.REGION_NAME = config("REGION_NAME", default="eu-west-2")
+        self.AWS_REGION = config("AWS_REGION", default="eu-west-2")
+        self.AWS_DEFAULT_REGION = config("AWS_DEFAULT_REGION", default="eu-west-2")
+        self.API_GATEWAY_INVOKE_URL = config("API_GATEWAY_INVOKE_URL")
+        self.API_GATEWAY_ROUTE = config(
+            "API_GATEWAY_ROUTE", default="/twitch/oauth2/authorization_code"
+        )
         self.CMD_ALLOW_LIST = [
             "aux",
             "cat",
@@ -34,6 +38,10 @@ class BotConfig:
     def get_bot_config(self) -> dict:
         return {
             "aws": {
+                "api_gateway": {
+                    "api_gateway_invoke_url": self.API_GATEWAY_INVOKE_URL,
+                    "api_gateway_route": self.API_GATEWAY_ROUTE,
+                },
                 "aws_region": self.AWS_REGION,
                 "aws_default_region": self.AWS_DEFAULT_REGION,
                 "region_name": self.REGION_NAME,

@@ -41,7 +41,7 @@ class TwitchApiAuth:
                 data = await resp.json()
         if status == 400:
             print(f"{Fore.RED}Failed to get app access token.{Style.RESET_ALL}")
-            exit(0)
+            raise ValueError("Authentication failed: No credentials provided.")
         if status == 200:
             print(
                 f"{Fore.GREEN}Generated new app access token!{Style.RESET_ALL}"
@@ -79,7 +79,7 @@ class TwitchApiAuth:
                 data = await resp.json()
         if status == 400:
             print(f"Failed to validate token using code: {code}.")
-            exit(0)
+            raise ValueError("Authentication failed: No credentials provided.")
         if status == 200:
             print(f"Token validated: {json.dumps(data)}.")
             return data
@@ -176,12 +176,14 @@ class TwitchApiAuth:
             The ID specified in the Client-Id header does not match the client ID specified in the access token.
             """
             print(f"Unauthorized: {json.dumps(data)}.")
+            raise ValueError(f"Authentication failed: {json.dumps(data)}.")
         if status == 400:
             """
             The id or login query parameter is required unless the request uses a user access token.
             The request exceeded the maximum allowed number of id and/or login query parameters.
             """
             print(f"Bad Request: {json.dumps(data)}.")
+            raise ValueError(f"Bad Request: {json.dumps(data)}.")
         if status == 200:
             print(
                 f"Successfully retrieved the specified users’ information: {json.dumps(data)}."

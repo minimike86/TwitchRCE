@@ -29,6 +29,18 @@ async def get_app_token() -> str:
 
 # TODO: Replace with lambda calls
 async def check_valid_token(user: any) -> bool:
+    """
+    Asynchronously checks if a user's access token is valid. If the token is invalid,
+    attempts to refresh the token and validates it again.
+
+    Args:
+        user (any): A user object or dictionary containing the user's access token
+            under the key "access_token".
+
+    Returns:
+        bool: True if the user's access token is valid after validation or refresh;
+              False if it remains invalid.
+    """
     is_valid_token = await TwitchApiAuth().validate_token(
         access_token=user.get("access_token")
     )
@@ -62,7 +74,7 @@ async def refresh_user_token(user: any) -> str:
     except (NoCredentialsError, PartialCredentialsError) as error:
         print("Credentials not available")
         raise error
-    return auth_result["access_token"]
+    return auth_result.get("access_token")
 
 
 """
@@ -79,9 +91,10 @@ dynamodb = boto3.resource(
     "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
 )
 user_table = dynamodb.Table("MSecBot_User")
+ec2 = boto3.client("ec2", region_name=BOT_CONFIG.get("aws").get("region_name"))
 
 
-async def setup_bot():
+async def setup_bot() -> CustomBot:
     print(f"{Fore.RED}Starting TwitchRCE!{Style.RESET_ALL}")
 
     # init asyncio
@@ -91,70 +104,99 @@ async def setup_bot():
     # fetch bot app token
     app_access_token = loop.run_until_complete(get_app_token())
 
+    scope = (
+        "user:read:chat user:write:chat moderator:read:suspicious_users moderator:read:chatters "
+        "user:manage:chat_color moderator:manage:chat_messages moderator:manage:chat_settings "
+        "moderator:read:chat_settings chat:read chat:edit user:read:email user:edit:broadcast "
+        "user:read:broadcast clips:edit bits:read channel:moderate channel:read:subscriptions "
+        "whispers:read whispers:edit moderation:read channel:read:redemptions channel:edit:commercial "
+        "channel:read:hype_train channel:manage:broadcast user:edit:follows channel:manage:redemptions "
+        "user:read:blocked_users user:manage:blocked_users user:read:subscriptions user:read:follows "
+        "channel:manage:polls channel:manage:predictions channel:read:polls channel:read:predictions "
+        "moderator:manage:automod channel:read:goals moderator:read:automod_settings "
+        "moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms "
+        "channel:manage:raids moderator:manage:announcements channel:read:vips channel:manage:vips "
+        "user:manage:whispers channel:read:charity moderator:read:shield_mode moderator:manage:shield_mode "
+        "moderator:read:shoutouts moderator:manage:shoutouts moderator:read:followers "
+        "channel:read:guest_star channel:manage:guest_star moderator:read:guest_star "
+        "moderator:manage:guest_star channel:bot user:bot channel:read:ads user:read:moderated_channels "
+        "user:read:emotes moderator:read:unban_requests moderator:manage:unban_requests channel:read:editors "
+        "analytics:read:games analytics:read:extensions"
+    )
+    api_gateway_invoke_url = (
+        BOT_CONFIG.get("aws").get("api_gateway").get("api_gateway_invoke_url")
+    )
+    api_gateway_route = (
+        BOT_CONFIG.get("aws").get("api_gateway").get("api_gateway_route")
+    )
+    redirect_uri = f"{api_gateway_invoke_url}{api_gateway_route}"
+    authorization_url = (
+        f"https://id.twitch.tv/oauth2/authorize?client_id={BOT_CONFIG.get('twitch').get('client_id')}"
+        f"&force_verify=true"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code"
+        f"&scope={scope.replace(' ', '%20')}"
+        f"&state={secrets.token_hex(16)}"
+    )
+
     # fetch bot user token (refresh it if needed)
     bot_user = None
     try:
         response = user_table.get_item(
             Key={"id": int(BOT_CONFIG.get("twitch").get("bot_user_id"))}
         )
-        bot_user = response.get("Item", 0)
+        bot_user = response.get("Item")
+
+        # the bot user has no twitch access token stored in db so can't use chat programmatically
         if not bot_user.get("access_token"):
-
-            scope = (
-                "user:read:chat user:write:chat moderator:read:suspicious_users moderator:read:chatters "
-                "user:manage:chat_color moderator:manage:chat_messages moderator:manage:chat_settings "
-                "moderator:read:chat_settings chat:read chat:edit user:read:email user:edit:broadcast "
-                "user:read:broadcast clips:edit bits:read channel:moderate channel:read:subscriptions "
-                "whispers:read whispers:edit moderation:read channel:read:redemptions channel:edit:commercial "
-                "channel:read:hype_train channel:manage:broadcast user:edit:follows channel:manage:redemptions "
-                "user:read:blocked_users user:manage:blocked_users user:read:subscriptions user:read:follows "
-                "channel:manage:polls channel:manage:predictions channel:read:polls channel:read:predictions "
-                "moderator:manage:automod channel:read:goals moderator:read:automod_settings "
-                "moderator:manage:banned_users moderator:read:blocked_terms moderator:manage:blocked_terms "
-                "channel:manage:raids moderator:manage:announcements channel:read:vips channel:manage:vips "
-                "user:manage:whispers channel:read:charity moderator:read:shield_mode moderator:manage:shield_mode "
-                "moderator:read:shoutouts moderator:manage:shoutouts moderator:read:followers "
-                "channel:read:guest_star channel:manage:guest_star moderator:read:guest_star "
-                "moderator:manage:guest_star channel:bot user:bot channel:read:ads user:read:moderated_channels "
-                "user:read:emotes moderator:read:unban_requests moderator:manage:unban_requests channel:read:editors "
-                "analytics:read:games analytics:read:extensions"
-            )
-
-            redirect_uri = "https://3yyduoz2ok.execute-api.eu-west-2.amazonaws.com/twitch/oauth2/authorization_code"
-            authorization_url = (
-                f"https://id.twitch.tv/oauth2/authorize?client_id={BOT_CONFIG.get('twitch').get('client_id')}"
-                f"&force_verify=true"
-                f"&redirect_uri={redirect_uri}"
-                f"&response_type=code"
-                f"&scope={scope.replace(' ', '%20')}"
-                f"&state={secrets.token_hex(16)}"
-            )
-
+            # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
+            # TODO: Deduplicate code
             print(
-                f"{Fore.RED}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.RED}.{Style.RESET_ALL}"
+                f"{Fore.CYAN}Bot has no access_token. Authenticate to update your token!{Style.RESET_ALL}"
+            )
+            print(
+                f"{Fore.CYAN}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.CYAN}.\n{Style.RESET_ALL}"
+            )
+
+            # TODO: Keep bot here / crash out until bot user has a new access token
+            raise ValueError(
+                "Bot has no access_token. Authenticate to update your token!"
             )
 
         else:
+            # the bot user has a twitch access token stored in db so check its actually valid else refresh it
             loop.run_until_complete(check_valid_token(user=bot_user))
-    except IndexError:
+
+    except AttributeError:
+        # database doesn't have an item for the bot_user_id provided
+
+        # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
+        # TODO: Deduplicate code
         print(
-            f"{Fore.RED}Failed to get bot user token for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_user_id')}{Fore.RED}!"
+            f"{Fore.CYAN}Failed to get bot user object for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_user_id')}{Fore.CYAN}!"
             f"{Style.RESET_ALL}"
         )
-        exit(0)
+        print(
+            f"{Fore.CYAN}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.CYAN}.{Style.RESET_ALL}"
+        )
+        raise ValueError(
+            "Bot user is not in the database. Authenticate to get an access token!"
+        )
 
-    ec2 = boto3.client("ec2", region_name=BOT_CONFIG.get("aws").get("region_name"))
     response = ec2.describe_instances(
         InstanceIds=["i-0100638f13e5451d8"]
     )  # TODO: Don't hardcode InstanceIds
-    public_dns = response["Reservations"][0]["Instances"][0]["PublicDnsName"]
+    if response.get("Reservations"):
+        public_url = f"https://{response.get('Reservations')[0].get('Instances')[0].get('PublicDnsName')}"
+    else:
+        public_url = None
 
     # Create a bot from your twitchapi client credentials
     bot = CustomBot(
         app_access_token=app_access_token,
         user_token=bot_user.get("access_token"),
         initial_channels=[BOT_CONFIG.get("twitch").get("bot_join_channel")],
-        eventsub_public_url=f"https://{public_dns}",
+        eventsub_public_url=public_url,
     )
     # TODO: DeprecationWarning: from_client_credentials is not suitable for Bots.
     bot.from_client_credentials(
@@ -171,23 +213,21 @@ async def setup_bot():
     Start the pubsub client for the Twitch channel
     https://twitchio.dev/en/stable/exts/pubsub.html
     """
-    try:
-        response = user_table.get_item(
-            Key={"id": BOT_CONFIG.get("twitch").get("bot_join_channel_id")}
-        )
-        channel_user = response["Item"]
+    response = user_table.get_item(
+        Key={
+            "id": int(
+                BOT_CONFIG.get("twitch").get("channel").get("bot_join_channel_id")
+            )
+        }
+    )
+    channel_user = response.get("Item")
+    if channel_user:
         bot.loop.run_until_complete(
             bot.__psclient_init__(
                 user_token=channel_user.get("access_token"),
                 channel_id=int(channel_user.get("id")),
             )
         )
-    except IndexError:
-        print(
-            f"{Fore.RED}Failed to get channel user token for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_join_channel')}{Fore.RED}!"
-            f"{Style.RESET_ALL}"
-        )
-        exit(0)
 
     """
     ███████ ███████  ██████ ██      ██ ███████ ███    ██ ████████         ██ ███    ██ ██ ████████ 
@@ -199,7 +239,8 @@ async def setup_bot():
     https://twitchio.dev/en/stable/exts/eventsub.html
     
     """
-    bot.loop.run_until_complete(bot.__esclient_init__())
+    if public_url:
+        bot.loop.run_until_complete(bot.__esclient_init__())
 
     """
     ██████   ██████  ████████      ██████  ██████  ███    ███ ███    ███  █████  ███    ██ ██████  ███████
@@ -536,7 +577,7 @@ async def setup_bot():
         """event triggered when stream goes offline"""
         print(
             f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[StreamOffline]{Fore.RED}"
-            f"[EventSub]:{Style.RESET_ALL}"
+            f"[EventSub]: {Style.RESET_ALL}"
         )
 
         # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
@@ -556,7 +597,7 @@ async def setup_bot():
         """event triggered when user donates to an active charity campaign"""
         print(
             f"{Fore.RED}[{payload.broadcaster.name}]{Fore.BLUE}[ChannelCharityDonation]{Fore.RED}"
-            f"[EventSub]:{Style.RESET_ALL}"
+            f"[EventSub]: {Style.RESET_ALL}"
         )
 
         currency_symbol = {
@@ -732,9 +773,10 @@ async def setup_bot():
             f"can learn more about the charity here: {payload.charity_website}"
         )
 
-    if __name__ == "__main__":
-        bot.run()
+    return bot
 
 
 if __name__ == "__main__":
-    setup_bot()
+    event_loop = asyncio.get_event_loop()
+    bot = event_loop.run_until_complete(setup_bot())
+    bot.run()

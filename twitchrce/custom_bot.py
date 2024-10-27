@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import twitchio
 from colorama import Fore, Style
-from twitchio import PartialUser, User
+from twitchio import AuthenticationError, PartialUser, User
 from twitchio.ext import commands, eventsub, pubsub
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
@@ -32,11 +32,13 @@ class CustomBot(commands.Bot):
         self.user_token = user_token
 
         self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
-        self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(
-            client=self,
-            webhook_secret="some_secret_string",
-            callback_route=f"{eventsub_public_url}",
-        )
+
+        if eventsub_public_url:
+            self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(
+                client=self,
+                webhook_secret="some_secret_string",
+                callback_route=f"{eventsub_public_url}",
+            )
 
         # TODO: Make persistent
         self.death_count = {}
@@ -196,16 +198,20 @@ class CustomBot(commands.Bot):
         app_token = self.app_access_token
         self.esclient.client._http.token = app_token
         self.esclient._http.__init__(client=self.esclient, token=app_token)
-        es_subs = await self.esclient._http.get_subscriptions()
-        print(
-            f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
-        )
-        for es_sub in es_subs:
-            await self.esclient._http.delete_subscription(es_sub)
+        try:
+            es_subs = await self.esclient._http.get_subscriptions()
             print(
-                f"{Fore.RED}Deleting the event subscription with id: "
-                f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}"
+                f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
             )
+            for es_sub in es_subs:
+                await self.esclient._http.delete_subscription(es_sub)
+                print(
+                    f"{Fore.RED}Deleting the event subscription with id: "
+                    f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}"
+                )
+        except AuthenticationError as error:
+            print(f"{Fore.RED}AuthenticationError: {error}{Fore.RED}.{Style.RESET_ALL}")
+            raise AuthenticationError
 
     async def delete_event_subscriptions(self, broadcasters: List[User]):
         """before registering new event subscriptions remove old event subs"""

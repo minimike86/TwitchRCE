@@ -8,14 +8,19 @@ def set_environment_variables(monkeypatch):
     # Set default environment variables for all tests
     monkeypatch.setenv("CLIENT_ID", "12345")
     monkeypatch.setenv("CLIENT_SECRET", "abcde")
-    monkeypatch.setenv("AWS_REGION", "eu-west-2")
-    monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
-    monkeypatch.setenv("REGION_NAME", "eu-west-2")
     monkeypatch.setenv("BOT_USER_ID", "123456")
     monkeypatch.setenv("BOT_JOIN_CHANNEL", "#general")
     monkeypatch.setenv("BOT_JOIN_CHANNEL_ID", "123456")
     monkeypatch.setenv("MAX_VIP_SLOTS", "10")
     monkeypatch.setenv("VIRUS_TOTAL_API_KEY", "xyz")
+    monkeypatch.setenv("REGION_NAME", "eu-west-2")
+    monkeypatch.setenv("AWS_REGION", "eu-west-2")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
+    monkeypatch.setenv(
+        "API_GATEWAY_INVOKE_URL",
+        "https://3yyduoz2ok.execute-api.eu-west-2.amazonaws.com",
+    )
+    monkeypatch.setenv("API_GATEWAY_ROUTE", "/twitch/oauth2/authorization_code")
 
 
 def test_config(monkeypatch):
