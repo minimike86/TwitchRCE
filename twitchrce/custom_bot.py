@@ -33,9 +33,8 @@ class CustomBot(commands.Bot):
     https://twitchio.dev/en/stable/exts/commands.html
     """
 
-    config = BotConfig()
-
-    def __init__(self):
+    def __init__(self, config: BotConfig):
+        self.config = config
         super().__init__(
             prefix="!",
             token=self.config.BOT_OAUTH_TOKEN,

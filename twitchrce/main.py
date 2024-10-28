@@ -6,6 +6,7 @@ import boto3
 import nest_asyncio
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from colorama import Fore, Style
+from twitchio import AuthenticationError
 
 from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
 from twitchrce.config import bot_config
@@ -89,12 +90,12 @@ async def refresh_user_token(user: any) -> str:
 Start the pubsub client for the Twitch channel
 """
 
-BOT_CONFIG = bot_config.BotConfig().get_bot_config()
+bot_config = bot_config.BotConfig()
 dynamodb = boto3.resource(
-    "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
+    "dynamodb", region_name=bot_config.get_bot_config().get("aws").get("region_name")
 )
 user_table = dynamodb.Table("MSecBot_User")
-ec2 = boto3.client("ec2", region_name=BOT_CONFIG.get("aws").get("region_name"))
+ec2 = boto3.client("ec2", region_name=bot_config.get_bot_config().get("aws").get("region_name"))
 
 
 async def setup_bot() -> CustomBot:
@@ -160,14 +161,14 @@ async def setup_bot() -> CustomBot:
         "analytics:read:games analytics:read:extensions"
     )
     api_gateway_invoke_url = (
-        BOT_CONFIG.get("aws").get("api_gateway").get("api_gateway_invoke_url")
+        bot_config.get_bot_config().get("aws").get("api_gateway").get("api_gateway_invoke_url")
     )
     api_gateway_route = (
-        BOT_CONFIG.get("aws").get("api_gateway").get("api_gateway_route")
+        bot_config.get_bot_config().get("aws").get("api_gateway").get("api_gateway_route")
     )
     redirect_uri = f"{api_gateway_invoke_url}{api_gateway_route}"
     authorization_url = (
-        f"https://id.twitch.tv/oauth2/authorize?client_id={BOT_CONFIG.get('twitch').get('client_id')}"
+        f"https://id.twitch.tv/oauth2/authorize?client_id={bot_config.get_bot_config().get('twitch').get('client_id')}"
         f"&force_verify=true"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"
@@ -179,7 +180,7 @@ async def setup_bot() -> CustomBot:
     bot_user = None
     try:
         response = user_table.get_item(
-            Key={"id": int(BOT_CONFIG.get("twitch").get("bot_auth").get("bot_user_id"))}
+            Key={"id": int(bot_config.get_bot_config().get("twitch").get("bot_auth").get("bot_user_id"))}
         )
         bot_user = response.get("Item")
 
@@ -201,7 +202,9 @@ async def setup_bot() -> CustomBot:
 
         else:
             # the bot user has a twitch access token stored in db so check its actually valid else refresh it
-            loop.run_until_complete(check_valid_token(user=bot_user))
+            is_valid = loop.run_until_complete(check_valid_token(user=bot_user))
+            if is_valid:
+                bot_config.BOT_OAUTH_TOKEN = bot_user.get("access_token")
 
     except AttributeError:
         # database doesn't have an item for the bot_user_id provided
@@ -209,7 +212,7 @@ async def setup_bot() -> CustomBot:
         # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
         # TODO: Deduplicate code
         logger.error(
-            f"{Fore.CYAN}Failed to get bot user object for {Fore.MAGENTA}{BOT_CONFIG.get('twitch').get('bot_user_id')}{Fore.CYAN}!"
+            f"{Fore.CYAN}Failed to get bot user object for {Fore.MAGENTA}{bot_config.get_bot_config().get('twitch').get('bot_user_id')}{Fore.CYAN}!"
             f"{Style.RESET_ALL}"
         )
         logger.info(
@@ -228,14 +231,14 @@ async def setup_bot() -> CustomBot:
         public_url = None
 
     # Create a bot from your twitchapi client credentials
-    bot = CustomBot()
+    bot = CustomBot(bot_config)
 
     # Start the pubsub client for the Twitch channel
-    if BOT_CONFIG.get("bot_features").get("enable_psclient"):
+    if bot_config.get_bot_config().get("bot_features").get("enable_psclient"):
         bot.loop.run_until_complete(bot.__psclient_init__())
 
     # Start the eventsub client for the Twitch channel
-    if BOT_CONFIG.get("bot_features").get("enable_esclient"):
+    if bot_config.get_bot_config().get("bot_features").get("enable_esclient"):
         if public_url:
             bot.loop.run_until_complete(bot.__esclient_init__())
 
@@ -244,4 +247,7 @@ async def setup_bot() -> CustomBot:
 
 if __name__ == "__main__":
     bot = asyncio.run(setup_bot())
-    bot.run()
+    try:
+        bot.run()
+    except AuthenticationError as error:
+        logger.error(msg=error)
