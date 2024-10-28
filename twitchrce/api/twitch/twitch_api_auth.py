@@ -1,17 +1,26 @@
 import asyncio
 import json
+import logging
 from typing import Optional
 
 import aiohttp
 from colorama import Fore, Style
 
 from twitchrce.config import bot_config
+from twitchrce.utils.utils import Utils
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class TwitchApiAuth:
 
     def __init__(self):
-        self.config = bot_config.BotConfig().get_bot_config().get("twitch")
+        self.config = bot_config.BotConfig().get_bot_config()
         self.loop = asyncio.get_event_loop()
 
     async def client_credentials_grant_flow(self) -> dict:
@@ -28,8 +37,10 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": self.config.get("client_id"),
-            "client_secret": self.config.get("client_secret"),
+            "client_id": self.config.get("twitch").get("app_auth").get("client_id"),
+            "client_secret": self.config.get("twitch")
+            .get("app_auth")
+            .get("client_secret"),
             "grant_type": "client_credentials",
         }
         request_body = {}
@@ -40,11 +51,12 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(f"{Fore.RED}Failed to get app access token.{Style.RESET_ALL}")
+            logger.error(f"{Fore.RED}Failed to get app access token.{Style.RESET_ALL}")
             raise ValueError("Authentication failed: No credentials provided.")
         if status == 200:
-            print(
-                f"{Fore.GREEN}Generated new app access token!{Style.RESET_ALL}"
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Generated new {Fore.LIGHTCYAN_EX}app access token"
+                f"{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )  # : {json.dumps(data)}.")
             return data
 
@@ -64,8 +76,10 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": self.config.get("client_id"),
-            "client_secret": self.config.get("client_secret"),
+            "client_id": self.config.get("twitch").get("app_auth").get("client_id"),
+            "client_secret": self.config.get("twitch")
+            .get("app_auth")
+            .get("client_secret"),
             "code": code,
             "grant_type": "authorization_code",
             "redirect_uri": f"{redirect_uri}",
@@ -78,10 +92,10 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(f"Failed to validate token using code: {code}.")
+            logger.error(f"Failed to validate token using code: {code}.")
             raise ValueError("Authentication failed: No credentials provided.")
         if status == 200:
-            print(f"Token validated: {json.dumps(data)}.")
+            logger.info(f"Token validated: {json.dumps(data)}.")
             return data
 
     async def refresh_access_token(self, refresh_token: str):
@@ -99,8 +113,10 @@ class TwitchApiAuth:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
-            "client_id": self.config.get("client_id"),
-            "client_secret": self.config.get("client_secret"),
+            "client_id": self.config.get("twitch").get("app_auth").get("client_id"),
+            "client_secret": self.config.get("twitch")
+            .get("app_auth")
+            .get("client_secret"),
             "grant_type": "refresh_token",
             "refresh_token": f"{refresh_token}",
         }
@@ -112,8 +128,9 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            print(
-                f"{Fore.RED}Failed to refresh token using token: {Fore.MAGENTA}{refresh_token}{Fore.RED}.{Style.RESET_ALL}"
+            logger.error(
+                f"{Fore.RED}Refresh of user oauth access_token using refresh_token [{Fore.MAGENTA}"
+                f"{Utils.redact_secret_string(refresh_token)}{Fore.RED}] has FAILED!.{Style.RESET_ALL}"
             )
             return data
         if status == 200:
@@ -123,7 +140,8 @@ class TwitchApiAuth:
     async def validate_token(access_token: str) -> bool:
         """
         https://dev.twitch.tv/docs/authentication/validate-tokens/
-        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens hourly as required.
+        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens
+        hourly as required.
         """
         url = "https://id.twitch.tv/oauth2/validate"
         headers = {
@@ -139,13 +157,17 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 401:
-            print(
-                f"{Fore.RED}Invalid access token: {Fore.MAGENTA}{json.dumps(data)}{Fore.RED}.{Style.RESET_ALL}"
+            logger.error(
+                f"{Fore.LIGHTWHITE_EX}Access token [{Fore.MAGENTA}OAuth {Utils.redact_secret_string(access_token)}"
+                f"{Fore.LIGHTWHITE_EX}] is {Fore.RED}INVALID{Fore.LIGHTWHITE_EX} - {Fore.YELLOW}{json.dumps(data)}"
+                f"{Fore.LIGHTWHITE_EX}.{Style.RESET_ALL}"
             )
             return False
         if status == 200:
-            print(
-                f"{Fore.GREEN}Valid access token for user: {Fore.MAGENTA}{data.get('login')}{Fore.GREEN}.{Style.RESET_ALL}"
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Access token [{Fore.MAGENTA}OAuth {Utils.redact_secret_string(access_token)}"
+                f"{Fore.LIGHTWHITE_EX}] for user {Fore.LIGHTCYAN_EX}{data.get('login')}{Fore.LIGHTWHITE_EX} is "
+                f"{Fore.GREEN}VALID{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )
             return True
 
@@ -158,7 +180,7 @@ class TwitchApiAuth:
         """
         url = "https://api.twitch.tv/helix/users"
         headers = {
-            "Client-Id": self.config.get("client_id"),
+            "Client-Id": self.config.get("twitch").get("app_auth").get("client_id"),
             "Authorization": f"Bearer {access_token}",
         }
         params = {}
@@ -175,17 +197,17 @@ class TwitchApiAuth:
             The access token is not valid.
             The ID specified in the Client-Id header does not match the client ID specified in the access token.
             """
-            print(f"Unauthorized: {json.dumps(data)}.")
+            logger.error(f"Unauthorized: {json.dumps(data)}.")
             raise ValueError(f"Authentication failed: {json.dumps(data)}.")
         if status == 400:
             """
             The id or login query parameter is required unless the request uses a user access token.
             The request exceeded the maximum allowed number of id and/or login query parameters.
             """
-            print(f"Bad Request: {json.dumps(data)}.")
+            logger.error(f"Bad Request: {json.dumps(data)}.")
             raise ValueError(f"Bad Request: {json.dumps(data)}.")
         if status == 200:
-            print(
+            logger.info(
                 f"Successfully retrieved the specified users’ information: {json.dumps(data)}."
             )
             return data["data"]

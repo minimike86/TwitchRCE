@@ -1,240 +1,671 @@
 import json
+import logging
 import random
 import re
 from typing import List, Optional
 
 import twitchio
 from colorama import Fore, Style
-from twitchio import AuthenticationError, PartialUser, User
+from twitchio import PartialUser, User
 from twitchio.ext import commands, eventsub, pubsub
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
-from twitchrce.config import bot_config
+from twitchrce.config.bot_config import BotConfig
+from twitchrce.esclient import CustomEventSubClient
+from twitchrce.psclient import CustomPubSubClient
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class CustomBot(commands.Bot):
-    """Custom twitchio bot class"""
+    """
+    ██████   ██████  ████████      ██████  ██████  ███    ███ ███    ███  █████  ███    ██ ██████  ███████
+    ██   ██ ██    ██    ██        ██      ██    ██ ████  ████ ████  ████ ██   ██ ████   ██ ██   ██ ██
+    ██████  ██    ██    ██        ██      ██    ██ ██ ████ ██ ██ ████ ██ ███████ ██ ██  ██ ██   ██ ███████
+    ██   ██ ██    ██    ██        ██      ██    ██ ██  ██  ██ ██  ██  ██ ██   ██ ██  ██ ██ ██   ██      ██
+    ██████   ██████     ██         ██████  ██████  ██      ██ ██      ██ ██   ██ ██   ████ ██████  ███████
+    Start the eventsub client for the Twitch channel
+    https://twitchio.dev/en/stable/exts/commands.html
+    """
 
-    def __init__(
-        self,
-        app_access_token: str,
-        user_token: str,
-        initial_channels: list[str],
-        eventsub_public_url: str,
-    ):
+    config = BotConfig()
+
+    def __init__(self):
         super().__init__(
-            prefix="!", token=user_token, initial_channels=initial_channels
+            prefix="!",
+            token=self.config.BOT_OAUTH_TOKEN,
+            client_secret=self.config.CLIENT_SECRET,
+            initial_channels=[self.config.BOT_INITIAL_CHANNELS[0].get("login")],
         )
+        self.bot_oauth_token = self.config.BOT_OAUTH_TOKEN
 
-        self.config = bot_config.BotConfig().get_bot_config()
+        if self.config.get_bot_config().get("bot_features").get("enable_psclient"):
+            for channel in self.config.BOT_INITIAL_CHANNELS:
+                self.ps_client = CustomPubSubClient(
+                    users_channel_id=int(channel.get("id")),
+                    bot_oauth_token=self.bot_oauth_token,
+                )
 
-        self.app_access_token = app_access_token
-        self.user_token = user_token
-
-        self.psclient: pubsub.PubSubPool = pubsub.PubSubPool(client=self)
-
-        if eventsub_public_url:
-            self.esclient: eventsub.EventSubClient = eventsub.EventSubClient(
-                client=self,
-                webhook_secret="some_secret_string",
-                callback_route=f"{eventsub_public_url}",
-            )
+        if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
+            eventsub_public_url = None  # TODO: Get EC2 Instance Public DNS URL
+            if eventsub_public_url:
+                self.es_client: CustomEventSubClient = CustomEventSubClient(
+                    client=self,
+                    webhook_secret="some_secret_string",
+                    callback_route=f"{eventsub_public_url}",
+                    bot_oauth_token=self.bot_oauth_token,
+                )
 
         # TODO: Make persistent
         self.death_count = {}
 
-        """ load commands from cogsss """
-        from twitchrce.cogs.rce import RCECog
+        """ load commands from cogs """
+        if (
+            self.config.get_bot_config()
+            .get("bot_features")
+            .get("cogs")
+            .get("rce_cog")
+            .get("enable_rce_cog")
+        ):
+            from twitchrce.cogs.rce import RCECog
 
-        self.add_cog(RCECog(self))
+            self.add_cog(RCECog(self))
 
-        from twitchrce.cogs.vip import VIPCog
+        if (
+            self.config.get_bot_config()
+            .get("bot_features")
+            .get("cogs")
+            .get("vip_cog")
+            .get("enable_vip_cog")
+        ):
+            from twitchrce.cogs.vip import VIPCog
 
-        self.add_cog(VIPCog(self))
+            self.add_cog(VIPCog(self))
+
+        @self.event()
+        async def event_error(error: Exception, data: Optional[str] = None):
+            logger.error(
+                f"{Fore.RED}======================================================================== \n"
+                f"Event Error: '{error}'! \n"
+                f"Event Data: '{data}'! \n"
+                f"======================================================================={Style.RESET_ALL}"
+            )
+
+        @self.event()
+        async def event_channel_join_failure(channel: str):
+            logger.error(
+                f"{Fore.RED}Bot failed to join {Fore.MAGENTA}{channel}{Fore.RED} channel!{Style.RESET_ALL}"
+            )
+            self._http.app_token = self._http.token
+            await self.join_channels(list(channel))
+
+        @self.event()
+        async def event_channel_joined(channel):
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Bot successfully joined {Fore.LIGHTCYAN_EX}{channel}{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
+            )
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Connected_channels: {Fore.LIGHTCYAN_EX}{self.connected_channels}{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
+            )
+            if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
+                # Side effect of joining channel it should start listening to event subscriptions
+                broadcasters: List[User] = await self.fetch_users(names=[channel.name])
+                await self.es_client.delete_event_subscriptions(broadcasters)
+                await self.es_client.subscribe_channel_events(
+                    broadcaster=broadcasters[0], moderator=broadcasters[0]
+                )
+
+        @self.event()
+        async def event_join(channel, user):
+            logger.info(
+                f"{Fore.MAGENTA}JOIN{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel}{Fore.WHITE}!{Style.RESET_ALL}"
+            )
+            pass
+
+        @self.event()
+        async def event_part(user):
+            logger.info(
+                f"{Fore.MAGENTA}PART{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel}{Fore.WHITE}!{Style.RESET_ALL}"
+            )
+            pass
+
+        @self.event()
+        async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
+            # Log redemption request - reward: CustomReward, user: PartialUser
+            logger.info(
+                f"{Fore.RED}[PubSub][ChannelPoints]: {event.reward.id}, {event.reward.title}, {event.reward.cost} | "
+                f"User: {event.user.id}, {event.user.name}{Style.RESET_ALL}"
+            )
+
+            # Check if reward can be redeemed at this time
+            if not event.reward.paused and event.reward.enabled:
+                """We have to check redemption names as id's are randomly allocated when redemption is added"""
+
+                if event.reward.title == "Kill My Shell":
+                    # noinspection PyTypeChecker
+                    rce_cog: RCECog = self.cogs["RCECog"]
+                    await rce_cog.killmyshell(
+                        broadcaster_id=event.channel_id,
+                        author_login=event.user.name,
+                        event=event,
+                    )
+
+                if event.reward.title == "VIP":
+                    # noinspection PyTypeChecker
+                    vip_cog: VIPCog = self.cogs["VIPCog"]
+                    await vip_cog.add_channel_vip(
+                        channel_id=event.channel_id,
+                        author_id=event.user.id,
+                        author_login=event.user.name,
+                        event=event,
+                    )
+
+        @self.event()
+        async def event_eventsub_notification_followV2(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            """event triggered when someone follows the channel"""
+            logger.info(
+                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Follow]{Fore.RED}[EventSub]: "
+                f"{payload.data.user.name} [{payload.data.user.id}]{Style.RESET_ALL}"
+            )
+            await self.get_channel(payload.data.broadcaster.name).send(
+                f"Thank you {payload.data.user.name} for following the channel!"
+            )
+
+        @self.event()
+        async def event_eventsub_notification_cheer(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            """event triggered when someone cheers in the channel"""
+            if hasattr(payload.data, "is_anonymous") and payload.data.is_anonymous:
+                event_string = (
+                    f"Received cheer event from anonymous, "
+                    f"cheered {payload.data.bits} bits, "
+                    f"message '{payload.data.message}'."
+                )
+            else:
+                event_string = (
+                    f"Received cheer event from {payload.data.user.name} [{payload.data.user.id}], "
+                    f"cheered {payload.data.bits} bits, "
+                    f"message '{payload.data.message}'."
+                )
+            logger.info(
+                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Cheer]{Fore.RED}[EventSub]: "
+                f"{event_string}{Style.RESET_ALL}"
+            )
+
+            # create stream marker (Stream markers cannot be created when the channel is offline)
+            await self.set_stream_marker(payload=payload, event_string=event_string)
+
+            # react to event
+            if hasattr(payload.data, "is_anonymous") and not payload.data.is_anonymous:
+                # Get cheerer info
+                channel = await self._http.get_channels(
+                    broadcaster_id=payload.data.user.id
+                )
+                clips = await self._http.get_clips(broadcaster_id=payload.data.user.id)
+                # Acknowledge raid and reply with a channel bio
+                await self.get_channel(
+                    self.config.get_bot_config()
+                    .get("twitch")
+                    .get("channel")
+                    .get("bot_join_channel")
+                ).send(
+                    f"Thank you @{channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!"
+                )
+                # shoutout the subscriber
+                if len(clips) >= 1:
+                    """check if sub is a streamer with clips on their channel and shoutout with clip player"""
+                    await self.get_channel(payload.data.broadcaster.name).send(
+                        f"!so {channel[0]['broadcaster_login']}"
+                    )
+                    await self.announce_shoutout(
+                        ctx=None,
+                        broadcaster=payload.data.broadcaster,
+                        channel=channel[0],
+                        color="green",
+                    )
+                else:
+                    """shoutout without clip player"""
+                    await self.announce_shoutout(
+                        ctx=None,
+                        broadcaster=payload.data.broadcaster,
+                        channel=channel[0],
+                        color="green",
+                    )
+
+        @self.event()
+        async def event_eventsub_notification_subscription(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            # Check if sub is gifted
+            if not payload.data.is_gift:
+                """event triggered when someone subscribes the channel"""
+                if hasattr(payload.data, "is_anonymous") and payload.data.is_anonymous:
+                    event_string = (
+                        f"Received subscription event from anonymous, "
+                        f"with tier {payload.data.tier / 1000} sub."
+                    )
+                else:
+                    event_string = (
+                        f"Received subscription event from {payload.data.user.name} [{payload.data.user.id}], "
+                        f"with tier {payload.data.tier / 1000} sub."
+                    )
+                logger.info(
+                    f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Sub]{Fore.RED}[EventSub]: "
+                    f"{event_string}{Style.RESET_ALL}"
+                )
+
+                # create stream marker (Stream markers cannot be created when the channel is offline)
+                await self.set_stream_marker(payload=payload, event_string=event_string)
+
+                # Get subscriber info
+                channel = await self._http.get_channels(
+                    broadcaster_id=payload.data.user.id
+                )
+                # Acknowledge raid and reply with a channel bio
+                if len(channel) >= 1:
+                    try:
+                        await self.get_channel(
+                            self.config.get_bot_config()
+                            .get("twitch")
+                            .get("channel")
+                            .get("bot_join_channel")
+                        ).send(
+                            f"Thank you @{channel[0]['broadcaster_login']} for the tier {payload.data.tier / 1000} "
+                            f"subscription!"
+                        )
+                    except (
+                        AttributeError
+                    ):  # AttributeError: 'NoneType' object has no attribute 'send'
+                        pass
+                # shoutout the subscriber
+                clips = await self._http.get_clips(broadcaster_id=payload.data.user.id)
+                if len(clips) >= 1:
+                    """check if sub is a streamer with clips on their channel and shoutout with clip player"""
+                    await self.get_channel(
+                        self.config.get_bot_config()
+                        .get("twitch")
+                        .get("channel")
+                        .get("bot_join_channel")
+                    ).send(f"!so {channel[0]['broadcaster_login']}")
+                    await self.announce_shoutout(
+                        ctx=None,
+                        broadcaster=payload.data.broadcaster,
+                        channel=channel[0],
+                        color="green",
+                    )
+                else:
+                    """shoutout without clip player"""
+                    await self.announce_shoutout(
+                        ctx=None,
+                        broadcaster=payload.data.broadcaster,
+                        channel=channel[0],
+                        color="green",
+                    )
+
+            else:
+                """event triggered when someone gifts a sub to someone in the channel"""
+                if hasattr(payload.data, "is_anonymous") and payload.data.is_anonymous:
+                    event_string = (
+                        f"Received gift subscription event from anonymous, "
+                        f"with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
+                    )
+                else:
+                    event_string = (
+                        f"Received gift subscription event from {payload.data.user.name} "
+                        f"[{payload.data.user.id}], with tier {int(payload.data.tier / 1000)} sub. [GIFTED]"
+                    )
+                logger.info(
+                    f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[GiftSub]{Fore.RED}[EventSub]: "
+                    f"{event_string}{Style.RESET_ALL}"
+                )
+
+                # create stream marker (Stream markers cannot be created when the channel is offline)
+                await self.set_stream_marker(payload=payload, event_string=event_string)
+
+                # Get subscriber info
+                channel = await self._http.get_channels(
+                    broadcaster_id=payload.data.user.id
+                )
+                # Acknowledge raid and reply with a channel bio
+                if len(channel) >= 1:
+                    try:
+                        await self.get_channel(
+                            self.config.get_bot_config()
+                            .get("twitch")
+                            .get("channel")
+                            .get("bot_join_channel")
+                        ).send(
+                            f"Congratulations @{channel[0]['broadcaster_login']} on receiving a "
+                            f"gifted tier {int(payload.data.tier / 1000)} subscription!"
+                        )
+                    except (
+                        AttributeError
+                    ):  # AttributeError: 'NoneType' object has no attribute 'send'
+                        pass
+
+        @self.event()
+        async def event_eventsub_notification_raid(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            """event triggered when someone raids the channel"""
+            event_string = (
+                f"Received raid event from {payload.data.raider.name} [{payload.data.raider.id}], "
+                f"with {payload.data.viewer_count} viewers"
+            )
+            logger.info(
+                f"{Fore.RED}[{payload.data.reciever.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
+                f"{event_string}{Style.RESET_ALL}"
+            )
+
+            # Log the raid occurrence
+            # TODO: Replace with dynamodb
+            # db.insert_raid_data(raider_id=payload.data.raider.id, raider_login=payload.data.raider.name,
+            #                     receiver_id=payload.data.reciever.id, receiver_login=payload.data.reciever.name,
+            #                     viewer_count=payload.data.viewer_count)
+            # Respond to the raid
+            broadcaster = list(
+                filter(
+                    lambda x: x.id == payload.data.reciever.id,
+                    self.channel_broadcasters,
+                )
+            )[0]
+
+            # create stream marker (Stream markers cannot be created when the channel is offline)
+            await self.set_stream_marker(payload=payload, event_string=event_string)
+
+            # Get raider info
+            channel = await self._http.get_channels(
+                broadcaster_id=payload.data.raider.id
+            )
+            clips = await self._http.get_clips(broadcaster_id=payload.data.raider.id)
+            # Acknowledge raid and reply with a channel bio
+            broadcaster_user = await self._http.get_users(
+                ids=[payload.data.reciever.id], logins=[]
+            )
+            await broadcaster.channel.send(
+                f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
+                f"Thank you @{channel[0]['broadcaster_login']} for trusting me with your community! "
+                f"My name is {broadcaster_user[0]['display_name']}, "
+                f"{broadcaster_user[0]['description']}"
+            )
+            # shoutout the raider
+            if len(clips) >= 1:
+                """check if raider is a streamer with clips on their channel and shoutout with clip player"""
+                await broadcaster.channel.send(f"!so {channel[0]['broadcaster_login']}")
+                await self.announce_shoutout(
+                    ctx=None,
+                    broadcaster=broadcaster,
+                    channel=channel[0],
+                    color="orange",
+                )
+            else:
+                """shoutout without clip player"""
+                await self.announce_shoutout(
+                    ctx=None,
+                    broadcaster=broadcaster,
+                    channel=channel[0],
+                    color="orange",
+                )
+
+        @self.event()
+        async def event_eventsub_notification_stream_start(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            """event triggered when stream goes live"""
+            logger.info(
+                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[StreamOnline]{Fore.RED}[EventSub]: "
+                f"type={payload.data.type}, started_at={payload.data.started_at}.{Style.RESET_ALL}"
+            )
+
+            # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
+            await self.delete_all_custom_rewards(payload.data.broadcaster)
+
+            # Add new custom rewards
+            await self.add_kill_my_shell_redemption_reward(payload.data.broadcaster)
+            await self.add_vip_auto_redemption_reward(payload.data.broadcaster)
+
+            broadcaster = list(
+                filter(
+                    lambda x: x.id == payload.data.broadcaster.id,
+                    self.channel_broadcasters,
+                )
+            )[0]
+            await broadcaster.channel.send(f"This stream is now online!")
+
+        @self.event()
+        async def event_eventsub_notification_stream_end(
+            payload: eventsub.NotificationEvent,
+        ) -> None:
+            """event triggered when stream goes offline"""
+            logger.info(
+                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[StreamOffline]{Fore.RED}"
+                f"[EventSub]: {Style.RESET_ALL}"
+            )
+
+            # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
+            await self.delete_all_custom_rewards(payload.data.broadcaster)
+
+            broadcaster = list(
+                filter(
+                    lambda x: x.id == payload.data.broadcaster.id,
+                    self.channel_broadcasters,
+                )
+            )[0]
+            await broadcaster.channel.send(f"This stream is now offline!")
+
+        @self.event()
+        async def event_eventsub_notification_channel_charity_donate(
+            payload: eventsub.ChannelCharityDonationData,
+        ) -> None:
+            """event triggered when user donates to an active charity campaign"""
+            logger.info(
+                f"{Fore.RED}[{payload.broadcaster.name}]{Fore.BLUE}[ChannelCharityDonation]{Fore.RED}"
+                f"[EventSub]: {Style.RESET_ALL}"
+            )
+
+            currency_symbol = {
+                "AED": "د.إ",
+                "AFN": "؋",
+                "ALL": "L",
+                "AMD": "֏",
+                "ANG": "ƒ",
+                "AOA": "Kz",
+                "ARS": "$",
+                "AUD": "$",
+                "AWG": "ƒ",
+                "AZN": "₼",
+                "BAM": "KM",
+                "BBD": "$",
+                "BDT": "৳",
+                "BGN": "лв",
+                "BHD": ".د.ب",
+                "BIF": "FBu",
+                "BMD": "$",
+                "BND": "$",
+                "BOB": "Bs.",
+                "BRL": "R$",
+                "BSD": "$",
+                "BTN": "Nu.",
+                "BWP": "P",
+                "BYN": "Br",
+                "BZD": "BZ$",
+                "CAD": "$",
+                "CDF": "FC",
+                "CHF": "CHF",
+                "CLP": "$",
+                "CNY": "¥",
+                "COP": "$",
+                "CRC": "₡",
+                "CUP": "$",
+                "CVE": "$",
+                "CZK": "Kč",
+                "DJF": "Fdj",
+                "DKK": "kr",
+                "DOP": "$",
+                "DZD": "د.ج",
+                "EGP": "E£",
+                "ERN": "Nfk",
+                "ETB": "Br",
+                "EUR": "€",
+                "FJD": "$",
+                "FKP": "£",
+                "GBP": "£",
+                "GEL": "₾",
+                "GGP": "£",
+                "GHS": "₵",
+                "GIP": "£",
+                "GMD": "D",
+                "GNF": "FG",
+                "GTQ": "Q",
+                "GYD": "$",
+                "HKD": "$",
+                "HNL": "L",
+                "HRK": "kn",
+                "HTG": "G",
+                "HUF": "Ft",
+                "IDR": "Rp",
+                "ILS": "₪",
+                "IMP": "£",
+                "INR": "₹",
+                "IQD": "ع.د",
+                "IRR": "﷼",
+                "ISK": "kr",
+                "JEP": "£",
+                "JMD": "$",
+                "JOD": "د.ا",
+                "JPY": "¥",
+                "KES": "KSh",
+                "KGS": "сом",
+                "KHR": "៛",
+                "KID": "$",
+                "KMF": "CF",
+                "KRW": "₩",
+                "KWD": "د.ك",
+                "KYD": "$",
+                "KZT": "₸",
+                "LAK": "₭",
+                "LBP": "ل.ل",
+                "LKR": "₨",
+                "LRD": "$",
+                "LSL": "L",
+                "LYD": "ل.د",
+                "MAD": "د.م.",
+                "MDL": "L",
+                "MGA": "Ar",
+                "MKD": "ден",
+                "MMK": "K",
+                "MNT": "₮",
+                "MOP": "P",
+                "MRU": "UM",
+                "MUR": "₨",
+                "MVR": "Rf",
+                "MWK": "MK",
+                "MXN": "$",
+                "MYR": "RM",
+                "MZN": "MT",
+                "NAD": "$",
+                "NGN": "₦",
+                "NIO": "C$",
+                "NOK": "kr",
+                "NPR": "₨",
+                "NZD": "$",
+                "OMR": "ر.ع.",
+                "PAB": "B/.",
+                "PEN": "S/.",
+                "PGK": "K",
+                "PHP": "₱",
+                "PKR": "₨",
+                "PLN": "zł",
+                "PYG": "₲",
+                "QAR": "ر.ق",
+                "RON": "lei",
+                "RSD": "дин.",
+                "RUB": "₽",
+                "RWF": "RF",
+                "SAR": "ر.س",
+                "SBD": "$",
+                "SCR": "₨",
+                "SDG": "ج.س.",
+                "SEK": "kr",
+                "SGD": "$",
+                "SHP": "£",
+                "SLL": "Le",
+                "SOS": "Sh",
+                "SRD": "$",
+                "SSP": "£",
+                "STN": "Db",
+                "SYP": "£",
+                "SZL": "L",
+                "THB": "฿",
+                "TJS": "SM",
+                "TMT": "T",
+                "TND": "د.ت",
+                "TOP": "T$",
+                "TRY": "₺",
+                "TTD": "$",
+                "TVD": "$",
+                "TWD": "NT$",
+                "TZS": "TSh",
+                "UAH": "₴",
+                "UGX": "USh",
+                "USD": "$",
+                "UYU": "$",
+                "UZS": "лв",
+                "VES": "Bs.",
+                "VND": "₫",
+                "VUV": "VT",
+                "WST": "WS$",
+                "XAF": "FCFA",
+                "XCD": "$",
+                "XDR": "SDR",
+                "XOF": "CFA",
+                "XPF": "CFP",
+                "YER": "﷼",
+                "ZAR": "R",
+                "ZMW": "ZK",
+                "ZWL": "$",
+            }
+            donation_value = payload.donation_value / (
+                10**payload.donation_decimal_places
+            )
+
+            broadcaster = list(
+                filter(
+                    lambda x: x.id == payload.broadcaster.id, self.channel_broadcasters
+                )
+            )[0]
+            await broadcaster.chat_announcement(
+                f"{payload.user.name} has donated {currency_symbol}{donation_value} "
+                f"towards the charity fundraiser for {payload.charity_name}! Thank you! You "
+                f"can learn more about the charity here: {payload.charity_website}"
+            )
 
     async def update_bot_http_token(self, token):
         """updates the bots http client token"""
         super()._http.token = token
 
-    async def __validate__(self, user_token: str):
-        validate_result = await self._http.validate(token=user_token)
+    async def __validate__(self):
+        validate_result = await self._http.validate(token=self.config.BOT_OAUTH_TOKEN)
         print(f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}")
 
-    async def __psclient_init__(self, user_token: str, channel_id: int) -> None:
-        topics = [
-            pubsub.channel_points(user_token)[channel_id],
-        ]
-        await self.psclient.subscribe_topics(topics)
-        print(
-            f"{Fore.RED}Subscribing to psclient topics for "
-            f"{Fore.MAGENTA}{channel_id}{Fore.RED}'s channel.{Style.RESET_ALL}"
-        )
+    async def __psclient_init__(self) -> None:
+        if self.config.get_bot_config().get("bot_features").get("enable_psclient"):
+            await self.ps_client.start_pubsub()
 
     async def __esclient_init__(self) -> None:
-        await self.delete_all_event_subscriptions()
-
-        """ start the esclient listening on specified port """
-        try:
-            self.loop.create_task(self.esclient.listen(port=80))
-            print(
-                f"{Fore.RED}Running EventSub server on "
-                f"[{Fore.MAGENTA}port=80{Fore.RED}].{Style.RESET_ALL}"
+        if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
+            await self.es_client.delete_all_event_subscriptions()
+            await self.es_client.subscribe_channel_events(
+                broadcaster=None, moderator=None
             )
-        except Exception as e:
-            print(e.with_traceback(tb=None))
-
-    async def subscribe_channel_events(self, broadcasters: List[User]):
-        for broadcaster in broadcasters:
-            print(
-                f"{Fore.RED}Subscribing to esclient events for "
-                f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-            )
-
-            try:
-                """create new event subscription for channel_follows event"""
-                await self.esclient.subscribe_channel_follows_v2(
-                    broadcaster=broadcaster.id, moderator=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_follows{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_follows{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_cheers event"""
-                await self.esclient.subscribe_channel_cheers(broadcaster=broadcaster.id)
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_cheers{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_cheers{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_subscriptions event"""
-                await self.esclient.subscribe_channel_subscriptions(
-                    broadcaster=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_subscriptions{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_subscriptions{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_raid event"""
-                await self.esclient.subscribe_channel_raid(
-                    to_broadcaster=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_raid{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_raid{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_stream_start event"""
-                await self.esclient.subscribe_channel_stream_start(
-                    broadcaster=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for {Fore.MAGENTA}"
-                    f"{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_start{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_stream_end event"""
-                await self.esclient.subscribe_channel_stream_end(
-                    broadcaster=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for {Fore.MAGENTA}"
-                    f"{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-            try:
-                """create new event subscription for channel_charity_donate event"""
-                await self.esclient.subscribe_channel_charity_donate(
-                    broadcaster=broadcaster.id
-                )
-                print(
-                    f"{Fore.RED}Subscribed to {Fore.MAGENTA}channel_charity_donate{Fore.RED} event for {Fore.MAGENTA}"
-                    f"{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-            except twitchio.HTTPException:
-                print(
-                    f"{Fore.RED}Failed to subscribe to {Fore.MAGENTA}channel_stream_end{Fore.RED} event for "
-                    f"{Fore.MAGENTA}{broadcaster.name}{Fore.RED}'s channel.{Style.RESET_ALL}"
-                )
-
-    async def delete_all_event_subscriptions(self):
-        """before registering new event subscriptions remove old event subs"""
-        app_token = self.app_access_token
-        self.esclient.client._http.token = app_token
-        self.esclient._http.__init__(client=self.esclient, token=app_token)
-        try:
-            es_subs = await self.esclient._http.get_subscriptions()
-            print(
-                f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
-            )
-            for es_sub in es_subs:
-                await self.esclient._http.delete_subscription(es_sub)
-                print(
-                    f"{Fore.RED}Deleting the event subscription with id: "
-                    f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}"
-                )
-        except AuthenticationError as error:
-            print(f"{Fore.RED}AuthenticationError: {error}{Fore.RED}.{Style.RESET_ALL}")
-            raise AuthenticationError
-
-    async def delete_event_subscriptions(self, broadcasters: List[User]):
-        """before registering new event subscriptions remove old event subs"""
-        self.esclient._http.__init__(client=self.esclient, token=self.app_access_token)
-        es_subs = await self.esclient._http.get_subscriptions()
-        print(
-            f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
-        )
-        for es_sub in es_subs:
-            if (
-                "broadcaster_user_id" in es_sub.condition
-                and int(es_sub.condition["broadcaster_user_id"]) == broadcasters[0].id
-            ) or (
-                "to_broadcaster_user_id" in es_sub.condition
-                and int(es_sub.condition["to_broadcaster_user_id"])
-                == broadcasters[0].id
-            ):
-                await self.esclient._http.delete_subscription(es_sub)
-                print(
-                    f"{Fore.RED}Deleting the event subscription with id: "
-                    f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel "
-                    f"{Fore.MAGENTA}{broadcasters[0].name}{Fore.RED}.{Style.RESET_ALL}"
-                )
 
     async def set_stream_marker(
         self, payload: eventsub.NotificationEvent, event_string: str
@@ -252,11 +683,11 @@ class CustomBot(commands.Bot):
             # Create the marker
             if hasattr(payload.data, "reciever"):
                 await payload.data.reciever.create_marker(
-                    token=self.user_token, description=event_string
+                    token=self.config.BOT_OAUTH_TOKEN, description=event_string
                 )
             else:
                 await payload.data.broadcaster.create_marker(
-                    token=self.user_token, description=event_string
+                    token=self.config.BOT_OAUTH_TOKEN, description=event_string
                 )
 
     @staticmethod
@@ -297,10 +728,11 @@ class CustomBot(commands.Bot):
             # logins = [channel.name for channel in self.connected_channels]
             # user_data = await self._http.get_users(token=self._http.app_token, ids=[], logins=logins)
             for channel in self.connected_channels:
-                print(
-                    f"{Fore.BLUE}[BOT READY] Logged into channel(s): {Fore.MAGENTA}{channel.name}{Fore.BLUE}, "
-                    f"as bot user: {Fore.MAGENTA}{self.nick}{Fore.BLUE} "
-                    f"({Fore.MAGENTA}ID: {self.user_id}{Fore.BLUE})!{Style.RESET_ALL}"
+                logger.info(
+                    f"{Fore.LIGHTWHITE_EX}[{Fore.LIGHTBLUE_EX}BOT READY{Fore.LIGHTWHITE_EX}] Logged into channel(s): "
+                    f"{Fore.LIGHTBLUE_EX}{channel.name}{Fore.LIGHTWHITE_EX}, "
+                    f"as bot user: {Fore.LIGHTBLUE_EX}{self.nick}{Fore.LIGHTWHITE_EX} "
+                    f"({Fore.LIGHTBLUE_EX}ID: {self.user_id}{Fore.LIGHTWHITE_EX})!{Style.RESET_ALL}"
                 )
                 # uncomment below to say in chat when the bot joins
                 # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: '
@@ -327,7 +759,7 @@ class CustomBot(commands.Bot):
             user: PartialUser = await message.channel.user()
             # oauth user access token with the ``moderator:manage:banned_users`` scope
             await user.ban_user(
-                token=self.user_token,
+                token=self.config.BOT_OAUTH_TOKEN,
                 moderator_id=user.id,
                 user_id=int(message.author.id),
                 reason="Banned for posting known bot spam/scam messages (eg: buy follows at dogehype)",
@@ -353,7 +785,7 @@ class CustomBot(commands.Bot):
                 prompt="Immediately closes the last terminal window "
                 "that was opened without warning!",
                 global_cooldown=5 * 60,
-                token=self.user_token,
+                token=self.config.BOT_OAUTH_TOKEN,
             )
             print(
                 f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}"
@@ -362,7 +794,7 @@ class CustomBot(commands.Bot):
     async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
         """Adds channel point redemption that adds the user to the VIP list automatically"""
         vips = await self._http.get_channel_vips(
-            token=self.user_token, broadcaster_id=broadcaster.id, first=100
+            token=self.config.BOT_OAUTH_TOKEN, broadcaster_id=broadcaster.id, first=100
         )
         if len(vips) < int(
             self.config.get("twitch").get("channel").get("max_vip_slots")
@@ -375,7 +807,7 @@ class CustomBot(commands.Bot):
                 "badge and bypass the chat limit in slow mode!",
                 max_per_user=1,
                 global_cooldown=5 * 60,
-                token=self.user_token,
+                token=self.config.BOT_OAUTH_TOKEN,
             )
             print(
                 f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}"
@@ -386,7 +818,9 @@ class CustomBot(commands.Bot):
         Requires a user access token that includes the channel:manage:redemptions scope.
         """
         rewards = await self._http.get_rewards(
-            broadcaster_id=broadcaster.id, only_manageable=True, token=self.user_token
+            broadcaster_id=broadcaster.id,
+            only_manageable=True,
+            token=self.config.BOT_OAUTH_TOKEN,
         )
         print(
             f"{Fore.RED}Got rewards: [{Fore.MAGENTA}{json.dumps(rewards)}{Fore.RED}]{Style.RESET_ALL}"
@@ -399,7 +833,7 @@ class CustomBot(commands.Bot):
                 await self._http.delete_custom_reward(
                     broadcaster_id=broadcaster.id,
                     reward_id=reward["id"],
-                    token=self.user_token,
+                    token=self.config.BOT_OAUTH_TOKEN,
                 )
                 print(
                     f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
@@ -437,7 +871,7 @@ class CustomBot(commands.Bot):
         error_count = 0
         try:
             await self.post_chat_announcement(
-                token=self.user_token,
+                token=self.config.BOT_OAUTH_TOKEN,
                 broadcaster_id=broadcaster.id,
                 message="".join(message),
                 moderator_id=broadcaster.id,
@@ -463,7 +897,7 @@ class CustomBot(commands.Bot):
                     # Moderator ID must match the user ID in the user access token.
                     await self.broadcaster_shoutout(
                         broadcaster=broadcaster,
-                        token=self.user_token,
+                        token=self.config.BOT_OAUTH_TOKEN,
                         to_broadcaster_id=channel["broadcaster_id"],
                         moderator_id=channel["broadcaster_id"],
                     )
