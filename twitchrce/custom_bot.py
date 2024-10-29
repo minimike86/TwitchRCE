@@ -111,6 +111,10 @@ class CustomBot(commands.Bot):
             logger.info(
                 f"{Fore.LIGHTWHITE_EX}Connected_channels: {Fore.LIGHTCYAN_EX}{self.connected_channels}{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )
+            if self.config.get_bot_config().get("bot_features").get("announce_join"):
+                await channel.send(
+                    f"has joined the chat! PowerUpL EntropyWins PowerUpR"
+                )
             if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
                 # Side effect of joining channel it should start listening to event subscriptions
                 broadcasters: List[User] = await self.fetch_users(names=[channel.name])
@@ -121,15 +125,15 @@ class CustomBot(commands.Bot):
 
         @self.event()
         async def event_join(channel, user):
-            logger.info(
-                f"{Fore.MAGENTA}JOIN{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel}{Fore.WHITE}!{Style.RESET_ALL}"
+            logger.debug(
+                f"{Fore.MAGENTA}JOIN{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel.name}{Fore.WHITE}!{Style.RESET_ALL}"
             )
             pass
 
         @self.event()
         async def event_part(user):
-            logger.info(
-                f"{Fore.MAGENTA}PART{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel}{Fore.WHITE}!{Style.RESET_ALL}"
+            logger.debug(
+                f"{Fore.MAGENTA}PART{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel.name}{Fore.WHITE}!{Style.RESET_ALL}"
             )
             pass
 
@@ -170,8 +174,11 @@ class CustomBot(commands.Bot):
         ) -> None:
             """event triggered when someone follows the channel"""
             logger.info(
-                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Follow]{Fore.RED}[EventSub]: "
-                f"{payload.data.user.name} [{payload.data.user.id}]{Style.RESET_ALL}"
+                f"{Fore.LIGHTWHITE_EX}[{Fore.LIGHTRED_EX}{payload.data.broadcaster.name}{Fore.LIGHTWHITE_EX}]"
+                f"{Fore.LIGHTBLUE_EX}[{Fore.LIGHTRED_EX}Follow{Fore.LIGHTWHITE_EX}]"
+                f"{Fore.LIGHTBLUE_EX}[{Fore.YELLOW}EventSub{Fore.LIGHTWHITE_EX}]: "
+                f"{Fore.LIGHTYELLOW_EX}{payload.data.user.name} {Fore.LIGHTWHITE_EX}"
+                f"[{Fore.LIGHTYELLOW_EX}{payload.data.user.id}{Fore.LIGHTWHITE_EX}]{Style.RESET_ALL}"
             )
             await self.get_channel(payload.data.broadcaster.name).send(
                 f"Thank you {payload.data.user.name} for following the channel!"
@@ -653,7 +660,9 @@ class CustomBot(commands.Bot):
 
     async def __validate__(self):
         validate_result = await self._http.validate(token=self.config.BOT_OAUTH_TOKEN)
-        print(f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}")
+        logger.info(
+            f"{Fore.GREEN}Validation complete: {validate_result}{Style.RESET_ALL}"
+        )
 
     async def __psclient_init__(self) -> None:
         if self.config.get_bot_config().get("bot_features").get("enable_psclient"):
@@ -709,7 +718,7 @@ class CustomBot(commands.Bot):
             >= 1
             or str(message.content).lower().count("order management panel") >= 1
         ) and str(message.content).lower().count("dogehype") >= 1:
-            print("Bot detected")
+            logger.info("Bot detected")
             return True
         return False
 
@@ -718,7 +727,10 @@ class CustomBot(commands.Bot):
             """Bot failed to join channel."""
             await self.join_channels(
                 channels=[
-                    self.config.get("twitch").get("channel").get("bot_join_channel")
+                    self.config.get_bot_config()
+                    .get("twitch")
+                    .get("channel")
+                    .get("bot_join_channel")
                 ]
             )
 
@@ -733,21 +745,32 @@ class CustomBot(commands.Bot):
                     f"as bot user: {Fore.LIGHTBLUE_EX}{self.nick}{Fore.LIGHTWHITE_EX} "
                     f"({Fore.LIGHTBLUE_EX}ID: {self.user_id}{Fore.LIGHTWHITE_EX})!{Style.RESET_ALL}"
                 )
-                # uncomment below to say in chat when the bot joins
-                # await channel.send(f'Logged into channel(s): {channel.name}, as bot user: '
-                #                    f'{self.nick} (ID: {self.user_id})')
+                if (
+                    self.config.get_bot_config()
+                    .get("bot_features")
+                    .get("announce_join")
+                ):
+                    await channel.send(
+                        f"has joined the chat! PowerUpL EntropyWins PowerUpR"
+                    )
 
-            # By default, turn on the sound and user commands
-            from cogs.ascii_cog import AsciiCog
+            if (
+                self.config.get_bot_config()
+                .get("bot_features")
+                .get("cogs")
+                .get("ascii_cog")
+                .get("enable_ascii_cog")
+            ):
+                from cogs.ascii_cog import AsciiCog
 
-            self.add_cog(AsciiCog(self))
+                self.add_cog(AsciiCog(self))
 
     async def event_message(self, message: twitchio.Message):
         """Messages with echo set to True are messages sent by the bot. ignore them."""
         if message.echo:
             return
         # Print the contents of our message to console...
-        print(
+        logger.info(
             f"{Fore.RED}[{message.channel.name}]{Fore.BLUE}[{message.author.name}]{Fore.RED}: {Fore.WHITE}"
             f"{message.content}{Style.RESET_ALL}"
         )
@@ -786,7 +809,7 @@ class CustomBot(commands.Bot):
                 global_cooldown=5 * 60,
                 token=self.config.BOT_OAUTH_TOKEN,
             )
-            print(
+            logger.info(
                 f"{Fore.RED}Added {Fore.MAGENTA}`Kill My Shell`{Fore.RED} channel point redemption.{Style.RESET_ALL}"
             )
 
@@ -796,20 +819,22 @@ class CustomBot(commands.Bot):
             token=self.config.BOT_OAUTH_TOKEN, broadcaster_id=broadcaster.id, first=100
         )
         if len(vips) < int(
-            self.config.get("twitch").get("channel").get("max_vip_slots")
+            self.config.get_bot_config()
+            .get("twitch")
+            .get("channel")
+            .get("max_vip_slots")
         ):
             await self._http.create_reward(
                 broadcaster_id=broadcaster.id,
                 title="VIP",
                 cost=80085,
-                prompt="VIPs have the ability to equip a special chat "
-                "badge and bypass the chat limit in slow mode!",
+                prompt="VIPs have the ability to equip a special chat badge and bypass the chat limit in slow mode!",
                 max_per_user=1,
                 global_cooldown=5 * 60,
                 token=self.config.BOT_OAUTH_TOKEN,
             )
-            print(
-                f"{Fore.RED}Added {Fore.MAGENTA}`VIP`{Fore.RED} channel point redemption.{Style.RESET_ALL}"
+            logger.info(
+                f"{Fore.RED}Added {Fore.MAGENTA}'VIP'{Fore.RED} channel point redemption.{Style.RESET_ALL}"
             )
 
     async def delete_all_custom_rewards(self, broadcaster: PartialUser):
@@ -821,7 +846,7 @@ class CustomBot(commands.Bot):
             only_manageable=True,
             token=self.config.BOT_OAUTH_TOKEN,
         )
-        print(
+        logger.info(
             f"{Fore.RED}Got rewards: [{Fore.MAGENTA}{json.dumps(rewards)}{Fore.RED}]{Style.RESET_ALL}"
         )
         if rewards is not None:
@@ -834,7 +859,7 @@ class CustomBot(commands.Bot):
                     reward_id=reward["id"],
                     token=self.config.BOT_OAUTH_TOKEN,
                 )
-                print(
+                logger.info(
                     f"{Fore.RED}Deleted reward: [{Fore.MAGENTA}id={reward['id']}{Fore.RED}]"
                     f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}"
                 )
@@ -879,7 +904,7 @@ class CustomBot(commands.Bot):
             )
 
         except Exception as error:
-            print(
+            logger.error(
                 f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
                 f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}"
             )
@@ -903,7 +928,7 @@ class CustomBot(commands.Bot):
 
         except Exception as error:
             """Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout."""
-            print(
+            logger.error(
                 f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
                 f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}"
             )
@@ -983,35 +1008,51 @@ class CustomBot(commands.Bot):
     @commands.command()
     async def join(self, ctx: commands.Context):
         """type !join <channel> to join the channel"""
-        param_username = re.sub(
-            r"^@", "", str(ctx.message.content).split(maxsplit=1)[1]
-        )
-        # Limit to broadcaster
-        if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292:
-            await self.join_channels([param_username])
+        try:
+            param_username = re.sub(
+                r"^@", "", str(ctx.message.content).split(maxsplit=1)[1]
+            )
+            # Limit to broadcaster
+            if ctx.author.is_broadcaster or int(ctx.author.id) == 125444292:
+                await self.join_channels([param_username])
+        except IndexError:
+            logger.error("!join command failed. Regex pattern did not match.")
 
     @commands.command()
     async def leave(self, ctx: commands.Context):
         """type !leave <channel> to join the channel"""
-        param_username = re.sub(
-            r"^@", "", str(ctx.message.content).split(maxsplit=1)[1]
-        )
-        # Limit to broadcaster
-        if (
-            ctx.author.is_broadcaster
-            or int(ctx.author.id) == 125444292
-            and str(
-                self.config.get("twitch").get("channel").get("bot_join_channel")
-            ).lower()
-            != param_username.lower()
-        ):  # stay connected to init channel
-            await self.part_channels([param_username])
-            # also remove event subs
-            broadcasters: List[User] = await self.fetch_users(names=[param_username])
-            await self.delete_event_subscriptions(broadcasters=broadcasters)
-        print(
-            f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}"
-        )
+        try:
+            param_username = re.sub(
+                r"^@", "", str(ctx.message.content).split(maxsplit=1)[1]
+            )
+            if (
+                ctx.author.is_broadcaster or int(ctx.author.id) == 125444292
+            ) and str(  # TODO: Don't hardcode user
+                self.config.get_bot_config()
+                .get("twitch")
+                .get("channel")
+                .get("bot_join_channel")
+            ).lower() != param_username.lower():
+                # stay connected to init channel
+                await self.part_channels([param_username])
+                # also remove event subs
+                if (
+                    self.config.get_bot_config()
+                    .get("bot_features")
+                    .get("enable_esclient")
+                ):
+                    broadcasters: List[User] = await self.fetch_users(
+                        names=[param_username]
+                    )
+                    await self.es_client.delete_event_subscriptions(
+                        broadcasters=broadcasters
+                    )
+
+            logger.info(
+                f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}"
+            )
+        except IndexError:
+            logger.error("!leave command failed. Regex pattern did not match.")
 
     @commands.command(aliases=["infosecstreams", "cyber_streams", "streams"])
     async def infosec_streams(self, ctx: commands.Context):

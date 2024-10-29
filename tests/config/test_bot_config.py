@@ -54,9 +54,14 @@ def test_config(monkeypatch):
     assert bot_initial_channels[0].get("login") == "msec"
 
     # Bot Features Vars
-    assert BOT_CONFIG.get("bot_features").get("enable_commands") is False
+    assert BOT_CONFIG.get("bot_features").get("announce_join") is True
+    assert BOT_CONFIG.get("bot_features").get("enable_commands") is True
     assert BOT_CONFIG.get("bot_features").get("enable_psclient") is False
     assert BOT_CONFIG.get("bot_features").get("enable_esclient") is False
+    assert (
+        BOT_CONFIG.get("bot_features").get("cogs").get("ascii_cog").get("enable_ascii_cog")
+        is True
+    )
     assert (
         BOT_CONFIG.get("bot_features").get("cogs").get("rce_cog").get("enable_rce_cog")
         is False

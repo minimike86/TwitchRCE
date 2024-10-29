@@ -95,7 +95,9 @@ dynamodb = boto3.resource(
     "dynamodb", region_name=bot_config.get_bot_config().get("aws").get("region_name")
 )
 user_table = dynamodb.Table("MSecBot_User")
-ec2 = boto3.client("ec2", region_name=bot_config.get_bot_config().get("aws").get("region_name"))
+ec2 = boto3.client(
+    "ec2", region_name=bot_config.get_bot_config().get("aws").get("region_name")
+)
 
 
 async def setup_bot() -> CustomBot:
@@ -119,7 +121,7 @@ async def setup_bot() -> CustomBot:
     ░      ▒ ░ ░   ▒ ░    ░      ░  ▒    ▒ ░▒░ ░  ░▒ ░ ▒░  ░  ▒    ░ ░  ░
     ░        ░   ░   ▒ ░  ░      ░         ░  ░░ ░  ░░   ░ ░           ░
     ░     ░           ░ ░       ░  ░  ░   ░     ░ ░         ░  ░
-░                         ░                                             {splash['version']}
+    ░                         ░                                             {splash['version']}
     
     {splash['description']}
     {splash['project_url']}
@@ -161,10 +163,16 @@ async def setup_bot() -> CustomBot:
         "analytics:read:games analytics:read:extensions"
     )
     api_gateway_invoke_url = (
-        bot_config.get_bot_config().get("aws").get("api_gateway").get("api_gateway_invoke_url")
+        bot_config.get_bot_config()
+        .get("aws")
+        .get("api_gateway")
+        .get("api_gateway_invoke_url")
     )
     api_gateway_route = (
-        bot_config.get_bot_config().get("aws").get("api_gateway").get("api_gateway_route")
+        bot_config.get_bot_config()
+        .get("aws")
+        .get("api_gateway")
+        .get("api_gateway_route")
     )
     redirect_uri = f"{api_gateway_invoke_url}{api_gateway_route}"
     authorization_url = (
@@ -180,7 +188,14 @@ async def setup_bot() -> CustomBot:
     bot_user = None
     try:
         response = user_table.get_item(
-            Key={"id": int(bot_config.get_bot_config().get("twitch").get("bot_auth").get("bot_user_id"))}
+            Key={
+                "id": int(
+                    bot_config.get_bot_config()
+                    .get("twitch")
+                    .get("bot_auth")
+                    .get("bot_user_id")
+                )
+            }
         )
         bot_user = response.get("Item")
 

@@ -56,10 +56,14 @@ class BotConfig:
                 "bot_initial_channels": self.BOT_INITIAL_CHANNELS,
             },
             "bot_features": {
-                "enable_commands": False,
+                "announce_join": True,
+                "enable_commands": True,
                 "enable_psclient": False,
                 "enable_esclient": False,
                 "cogs": {
+                    "ascii_cog": {
+                        "enable_ascii_cog": True,
+                    },
                     "rce_cog": {
                         "enable_rce_cog": False,
                         "cmd_allow_list": self.CMD_ALLOW_LIST,
