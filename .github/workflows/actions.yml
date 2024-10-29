@@ -3,14 +3,20 @@ name: CI/CD Workflow
 on: [push, pull_request]
 
 env:
+  # Twitch Developer Credentials
   CLIENT_ID: ${{ secrets.CLIENT_ID }}
   CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-  VIRUS_TOTAL_API_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY }}
-  REGION_NAME: ${{ vars.REGION_NAME }}
+  # Twitch Bot User Credentials
   BOT_USER_ID: ${{ vars.BOT_USER_ID }}
-  BOT_JOIN_CHANNEL: ${{ vars.BOT_JOIN_CHANNEL }}
-  BOT_JOIN_CHANNEL_ID: ${{ vars.BOT_JOIN_CHANNEL_ID }}
-  MAX_VIP_SLOTS: ${{ vars.MAX_VIP_SLOTS }}
+  BOT_OAUTH_TOKEN: ${{ secrets.BOT_OAUTH_TOKEN }}
+  # Virus Total Developer API Key
+  VIRUS_TOTAL_API_KEY: ${{ secrets.VIRUS_TOTAL_API_KEY }}
+  # AWS Credentials
+  REGION_NAME: ${{ vars.REGION_NAME }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+  API_GATEWAY_INVOKE_URL: ${{ vars.API_GATEWAY_INVOKE_URL }}
+  API_GATEWAY_ROUTE: ${{ vars.API_GATEWAY_ROUTE }}
 
 jobs:
   setup:
