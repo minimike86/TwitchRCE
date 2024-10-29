@@ -69,7 +69,7 @@ class TwitchApiAuth:
         Parameter	    Required?	Type	Description
         client_id	    Yes	        String	Your app’s registered client ID.
         client_secret	Yes	        String	Your app’s registered client secret.
-        code	        Yes	        String	The code that the /authorize response returned in the code query parameter.
+        code	        Yes	        String	The code that the /authorize response returned to the code query parameter.
         grant_type	    Yes	        String	Must be set to authorization_code.
         redirect_uri	Yes	        URI	    Your app’s registered redirect URI.
         """
@@ -128,6 +128,7 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
+            from twitchrce.utils.utils import Utils
             logger.error(
                 f"{Fore.RED}Refresh of user oauth access_token using refresh_token [{Fore.MAGENTA}"
                 f"{Utils.redact_secret_string(refresh_token)}{Fore.RED}] has FAILED!.{Style.RESET_ALL}"
