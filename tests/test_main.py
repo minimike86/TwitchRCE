@@ -271,7 +271,9 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
         ),
     ]
 
-    mock_check_valid_token = mocker.patch("twitchrce.utils.utils.Utils.check_valid_token")
+    mock_check_valid_token = mocker.patch(
+        "twitchrce.utils.utils.Utils.check_valid_token"
+    )
     mock_check_valid_token.return_value = True
 
     mock_describe_instances_response = {}

@@ -21,6 +21,7 @@ class Utils:
     async def get_app_token() -> str:
         """Uses the bots' client id and secret to generate a new application token via client credentials grant flow"""
         from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+
         client_creds_grant_flow = await TwitchApiAuth().client_credentials_grant_flow()
         logger.info(
             f"{Fore.LIGHTWHITE_EX}Updated {Fore.LIGHTCYAN_EX}app access token{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
@@ -29,17 +30,16 @@ class Utils:
 
     @staticmethod
     async def refresh_user_token(user: any) -> str:
-        # TODO: Replace with lambda calls
+        # TODO: Replace with aws calls
         from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+
         auth_result = await TwitchApiAuth().refresh_access_token(
             refresh_token=user.get("refresh_token")
         )
         try:
             config = bot_config.BotConfig()
             region_name = config.get_bot_config().get("aws").get("region_name")
-            dynamodb = boto3.resource(
-                "dynamodb", region_name=region_name
-            )
+            dynamodb = boto3.resource("dynamodb", region_name=region_name)
             user_table = dynamodb.Table("MSecBot_User")
             user_table.update_item(
                 Key={"id": user.get("id")},
@@ -64,7 +64,7 @@ class Utils:
         return auth_result.get("access_token")
 
     async def check_valid_token(self, user: any) -> bool:
-        # TODO: Replace with lambda calls
+        # TODO: Replace with aws calls
         """
         Asynchronously checks if a user's access token is valid. If the token is invalid,
         attempts to refresh the token and validates it again.
@@ -78,12 +78,15 @@ class Utils:
                   False if it remains invalid.
         """
         from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+
         is_valid_token = await TwitchApiAuth().validate_token(
             access_token=user.get("access_token")
         )
         if not is_valid_token:
             access_token = await self.refresh_user_token(user=user)
-            is_valid_token = await TwitchApiAuth().validate_token(access_token=access_token)
+            is_valid_token = await TwitchApiAuth().validate_token(
+                access_token=access_token
+            )
         return is_valid_token
 
     @staticmethod

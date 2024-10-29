@@ -129,6 +129,7 @@ class TwitchApiAuth:
                 data = await resp.json()
         if status == 400:
             from twitchrce.utils.utils import Utils
+
             logger.error(
                 f"{Fore.RED}Refresh of user oauth access_token using refresh_token [{Fore.MAGENTA}"
                 f"{Utils.redact_secret_string(refresh_token)}{Fore.RED}] has FAILED!.{Style.RESET_ALL}"

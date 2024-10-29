@@ -1109,7 +1109,7 @@ class CustomBot(commands.Bot):
     # @commands.command(aliases=['mod'])
     # TODO: Update to dynamodb
     # async def mod_bot(self, ctx: commands.Context):
-    #     from_broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+    #     from_broadcaster: PartialUser = list(filter(aws x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
     #     to_moderator_user = await self._http.get_users(ids=[], logins=[settings.BOT_USER_ID])
     #     await from_broadcaster.add_channel_moderator(token=self.user_token,
     #                                                  user_id=to_moderator_user[0]['id'])
@@ -1342,7 +1342,7 @@ class CustomBot(commands.Bot):
     # TODO: Update to dynamodb
     # async def redemptions(self, ctx: commands.Context):
     #     """ type !redemptions to force the custom redemptions to load """
-    #     broadcaster: PartialUser = list(filter(lambda x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
+    #     broadcaster: PartialUser = list(filter(aws x: x.name == ctx.channel.name, self.channel_broadcasters))[0]
     #     if int(ctx.author.id) == broadcaster.id or int(ctx.author.id) == 125444292:
     #         # Delete custom rewards before attempting to create new ones otherwise create_reward() will fail
     #         await self.delete_all_custom_rewards(broadcaster)

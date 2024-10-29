@@ -7,7 +7,6 @@ import nest_asyncio
 from colorama import Fore, Style
 from twitchio import AuthenticationError
 
-from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
 from twitchrce.config import bot_config
 from twitchrce.custom_bot import CustomBot
 from twitchrce.utils.utils import Utils
@@ -35,15 +34,11 @@ config = bot_config.BotConfig()
 region_name = config.get_bot_config().get("aws").get("region_name")
 
 # Database
-dynamodb = boto3.resource(
-    "dynamodb", region_name=region_name
-)
+dynamodb = boto3.resource("dynamodb", region_name=region_name)
 user_table = dynamodb.Table("MSecBot_User")
 
 # Worker
-ec2 = boto3.client(
-    "ec2", region_name=region_name
-)
+ec2 = boto3.client("ec2", region_name=region_name)
 
 
 async def setup_bot() -> CustomBot:
@@ -116,10 +111,7 @@ async def setup_bot() -> CustomBot:
         .get("api_gateway_invoke_url")
     )
     api_gateway_route = (
-        config.get_bot_config()
-        .get("aws")
-        .get("api_gateway")
-        .get("api_gateway_route")
+        config.get_bot_config().get("aws").get("api_gateway").get("api_gateway_route")
     )
     redirect_uri = f"{api_gateway_invoke_url}{api_gateway_route}"
     authorization_url = (
@@ -134,16 +126,10 @@ async def setup_bot() -> CustomBot:
     # fetch bot user token (refresh it if needed)
     _bot_user = None
     try:
-        response = user_table.get_item(
-            Key={
-                "id": int(
-                    config.get_bot_config()
-                    .get("twitch")
-                    .get("bot_auth")
-                    .get("bot_user_id")
-                )
-            }
+        bot_user_id = int(
+            config.get_bot_config().get("twitch").get("bot_auth").get("bot_user_id")
         )
+        response = user_table.get_item(Key={"id": bot_user_id})
         _bot_user = response.get("Item")
 
         # the bot user has no twitch access token stored in db so can't use chat programmatically
@@ -164,7 +150,9 @@ async def setup_bot() -> CustomBot:
 
         else:
             # the bot user has a twitch access token stored in db so check its actually valid else refresh it
-            is_valid = loop.run_until_complete(Utils().check_valid_token(user=_bot_user))
+            is_valid = loop.run_until_complete(
+                Utils().check_valid_token(user=_bot_user)
+            )
             if is_valid:
                 config.BOT_OAUTH_TOKEN = _bot_user.get("access_token")
 
