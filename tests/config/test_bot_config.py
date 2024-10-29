@@ -59,7 +59,10 @@ def test_config(monkeypatch):
     assert BOT_CONFIG.get("bot_features").get("enable_psclient") is False
     assert BOT_CONFIG.get("bot_features").get("enable_esclient") is False
     assert (
-        BOT_CONFIG.get("bot_features").get("cogs").get("ascii_cog").get("enable_ascii_cog")
+        BOT_CONFIG.get("bot_features")
+        .get("cogs")
+        .get("ascii_cog")
+        .get("enable_ascii_cog")
         is True
     )
     assert (
