@@ -124,16 +124,16 @@ class CustomBot(commands.Bot):
                 )
 
         @self.event()
-        async def event_join(channel, user):
+        async def event_join(_channel, user):
             logger.debug(
-                f"{Fore.MAGENTA}JOIN{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel.name}{Fore.WHITE}!{Style.RESET_ALL}"
+                f"{Fore.MAGENTA}JOIN{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{_channel.name}{Fore.WHITE}!{Style.RESET_ALL}"
             )
             pass
 
         @self.event()
         async def event_part(user):
             logger.debug(
-                f"{Fore.MAGENTA}PART{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Fore.WHITE} in channel {Fore.CYAN}{channel.name}{Fore.WHITE}!{Style.RESET_ALL}"
+                f"{Fore.MAGENTA}PART{Fore.WHITE} is received from Twitch for user {Fore.CYAN}{user.name}{Style.RESET_ALL}"
             )
             pass
 
@@ -745,14 +745,14 @@ class CustomBot(commands.Bot):
                     f"as bot user: {Fore.LIGHTBLUE_EX}{self.nick}{Fore.LIGHTWHITE_EX} "
                     f"({Fore.LIGHTBLUE_EX}ID: {self.user_id}{Fore.LIGHTWHITE_EX})!{Style.RESET_ALL}"
                 )
-                if (
-                    self.config.get_bot_config()
-                    .get("bot_features")
-                    .get("announce_join")
-                ):
-                    await channel.send(
-                        f"has joined the chat! PowerUpL EntropyWins PowerUpR"
-                    )
+                # if (
+                #     self.config.get_bot_config()
+                #     .get("bot_features")
+                #     .get("announce_join")
+                # ):
+                #     await channel.send(
+                #         f"has joined the chat! PowerUpL EntropyWins PowerUpR"
+                #     )
 
             if (
                 self.config.get_bot_config()
