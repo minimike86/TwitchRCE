@@ -1,11 +1,12 @@
-from unittest.mock import AsyncMock, patch
+import asyncio
 
 import pytest
+from moto import mock_aws
 
 
-@pytest.mark.asyncio
+@mock_aws
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-async def test_get_app_token(mocker):
+def test_get_app_token(mocker):
     from twitchrce.main import get_app_token
 
     # Mock the response from client_credentials_grant_flow
@@ -22,6 +23,8 @@ async def test_get_app_token(mocker):
     mock_client_credentials_grant_flow.return_value = (
         client_credentials_grant_flow_response
     )
-    access_token = await get_app_token()
+
+    event_loop = asyncio.get_event_loop()
+    access_token = event_loop.run_until_complete(get_app_token())
     assert access_token == "1234567890abcdef1234567890abcdef"
     mock_client_credentials_grant_flow.assert_awaited_once()
