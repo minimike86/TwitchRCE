@@ -183,6 +183,7 @@ async def setup_bot() -> CustomBot:
 
     # Create a bot from your twitchapi client credentials
     custom_bot = CustomBot(config)
+    custom_bot.loop.run_until_complete(custom_bot.__ainit__())
 
     # Start the pubsub client for the Twitch channel
     if config.get_bot_config().get("bot_features").get("enable_psclient"):
@@ -197,8 +198,8 @@ async def setup_bot() -> CustomBot:
 
 
 if __name__ == "__main__":
-    bot = asyncio.run(setup_bot())
     try:
+        bot = asyncio.run(setup_bot())
         bot.run()
     except AuthenticationError as error:
         logger.error(msg=error)

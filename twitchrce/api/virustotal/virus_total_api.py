@@ -8,7 +8,12 @@ from twitchrce.config import bot_config
 class VirusTotalApiClient:
 
     def __init__(self):
-        self.config = bot_config.BotConfig().get_bot_config().get("virus_total")
+        self.config = (
+            bot_config.BotConfig()
+            .get_bot_config()
+            .get("bot_features")
+            .get("virus_total")
+        )
         self.loop = asyncio.get_event_loop()
         self.client = vt.Client(self.config.get("virus_total_api_key"))
 

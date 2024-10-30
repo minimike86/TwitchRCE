@@ -169,7 +169,7 @@ class TwitchApiAuth:
             logger.info(
                 f"{Fore.LIGHTWHITE_EX}Access token [{Fore.MAGENTA}OAuth {Utils.redact_secret_string(access_token)}"
                 f"{Fore.LIGHTWHITE_EX}] for user {Fore.LIGHTCYAN_EX}{data.get('login')}{Fore.LIGHTWHITE_EX} is "
-                f"{Fore.GREEN}VALID{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
+                f"{Fore.LIGHTGREEN_EX}VALID{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )
             return True
 
