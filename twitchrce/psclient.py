@@ -2,14 +2,13 @@ import logging
 from typing import List
 
 import twitchio
-from twitchio.ext.commands import Cog
-
 from cogs.rce import RCECog as RCE_Cog
 from cogs.vip import VIPCog as VIP_Cog
 from colorama import Fore, Style
 from custom_bot import CustomBot
-from twitchio import Client, User, Chatter, PartialChatter
+from twitchio import Chatter, Client, PartialChatter, User
 from twitchio.ext import pubsub
+from twitchio.ext.commands import Cog
 
 logging.basicConfig(
     level=logging.DEBUG,

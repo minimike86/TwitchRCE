@@ -1,10 +1,9 @@
 import logging
 
 import twitchio
-from twitchio import PartialUser, User, Chatter, PartialChatter
-from twitchio.ext import commands, pubsub
-
 from custom_bot import CustomBot
+from twitchio import Chatter, PartialChatter, PartialUser, User
+from twitchio.ext import commands, pubsub
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -65,8 +64,12 @@ class VIPCog(commands.Cog):
 
         else:
             """Add redeemer as a VIP, and auto-fulfill the redemption"""
-            broadcaster_token = "broadcaster_token"  # TODO: Get actual broadcaster_token from database
-            await broadcaster.add_channel_vip(token=broadcaster_token, user_id=int(chatter.id))
+            broadcaster_token = (
+                "broadcaster_token"  # TODO: Get actual broadcaster_token from database
+            )
+            await broadcaster.add_channel_vip(
+                token=broadcaster_token, user_id=int(chatter.id)
+            )
             await self.bot.update_reward_redemption_status(
                 broadcaster=broadcaster,
                 reward_id=event.id,

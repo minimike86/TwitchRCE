@@ -10,7 +10,7 @@ from subprocess import PIPE, Popen
 import twitchio
 from colorama import Fore, Style
 from custom_bot import CustomBot
-from twitchio import User, errors, PartialUser, PartialChatter, Chatter
+from twitchio import Chatter, PartialChatter, PartialUser, User, errors
 from twitchio.ext import commands, pubsub
 
 logging.basicConfig(
