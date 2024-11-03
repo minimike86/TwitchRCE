@@ -52,7 +52,8 @@ class Utils:
                 ReturnValues="UPDATED_NEW",
             )
             logger.info(
-                f"{Fore.LIGHTWHITE_EX}Updated access_token and refresh_token for user {Fore.LIGHTCYAN_EX}{user['login']}"
+                f"{Fore.LIGHTWHITE_EX}Updated access_token and refresh_token for user "
+                f"{Fore.LIGHTCYAN_EX}{user['login']}"
                 f"{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )
         except ResourceNotFoundException as resource_error:

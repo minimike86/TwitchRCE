@@ -37,9 +37,6 @@ region_name = config.get_bot_config().get("aws").get("region_name")
 dynamodb = boto3.resource("dynamodb", region_name=region_name)
 user_table = dynamodb.Table("MSecBot_User")
 
-# Worker
-ec2 = boto3.client("ec2", region_name=region_name)
-
 
 async def setup_bot() -> CustomBot:
     splash = {
@@ -173,14 +170,6 @@ async def setup_bot() -> CustomBot:
             "Bot user is not in the database. Authenticate to get an access token!"
         )
 
-    response = ec2.describe_instances(
-        InstanceIds=["i-0100638f13e5451d8"]
-    )  # TODO: Don't hardcode InstanceIds
-    if response.get("Reservations"):
-        public_url = f"https://{response.get('Reservations')[0].get('Instances')[0].get('PublicDnsName')}"
-    else:
-        public_url = None
-
     # Create a bot from your twitchapi client credentials
     custom_bot = CustomBot(config)
     custom_bot.loop.run_until_complete(custom_bot.__ainit__())
@@ -191,8 +180,7 @@ async def setup_bot() -> CustomBot:
 
     # Start the eventsub client for the Twitch channel
     if config.get_bot_config().get("bot_features").get("enable_esclient"):
-        if public_url:
-            custom_bot.loop.run_until_complete(custom_bot.__esclient_init__())
+        custom_bot.loop.run_until_complete(custom_bot.__esclient_init__())
 
     return custom_bot
 
@@ -201,5 +189,5 @@ if __name__ == "__main__":
     try:
         bot = asyncio.run(setup_bot())
         bot.run()
-    except AuthenticationError as error:
-        logger.error(msg=error)
+    except AuthenticationError as auth_error:
+        logger.error(msg=auth_error)

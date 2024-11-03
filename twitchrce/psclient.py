@@ -1,9 +1,22 @@
+import logging
 from typing import List
 
 import twitchio
+from twitchio.ext.commands import Cog
+
+from cogs.rce import RCECog as RCE_Cog
+from cogs.vip import VIPCog as VIP_Cog
 from colorama import Fore, Style
-from twitchio import Client
+from custom_bot import CustomBot
+from twitchio import Client, User, Chatter, PartialChatter
 from twitchio.ext import pubsub
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class CustomPubSubClient(Client):
@@ -16,8 +29,9 @@ class CustomPubSubClient(Client):
     https://twitchio.dev/en/stable/exts/pubsub.html
     """
 
-    def __init__(self, users_channel_id: int, bot_oauth_token: str):
+    def __init__(self, bot: CustomBot, users_channel_id: int, bot_oauth_token: str):
         super().__init__(token=bot_oauth_token)
+        self.bot = bot
         self.client = twitchio.Client(token=bot_oauth_token)
         self.users_channel_id: int = users_channel_id
         self.users_oauth_token: str = bot_oauth_token
@@ -34,10 +48,55 @@ class CustomPubSubClient(Client):
 
         @self.client.event()
         async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
-            print(
-                f"Channel Points redeemed by {event.user.name} for {event.reward.title}"
+            # Log redemption request - reward: CustomReward, user: PartialUser
+            logger.info(
+                f"{Fore.RED}[PubSub][ChannelPoints]: {event.reward.id}, {event.reward.title}, {event.reward.cost} | "
+                f"User: {event.user.id}, {event.user.name}{Style.RESET_ALL}"
             )
-            pass  # do stuff on channel point redemptions
+
+            # Check if reward can be redeemed at this time
+            if not event.reward.paused and event.reward.enabled:
+                """We have to check redemption names as id's are randomly allocated when redemption is added"""
+
+                if event.reward.title == "Kill My Shell" and (
+                    self.bot.config.get_bot_config()
+                    .get("bot_features")
+                    .get("cogs")
+                    .get("rce_cog")
+                    .get("enable_rce_cog")
+                ):
+                    broadcaster: User = (
+                        await self.fetch_users(ids=[event.channel_id])
+                    )[0]
+                    chatter: Chatter | PartialChatter = broadcaster.channel.get_chatter(
+                        name=event.user.name
+                    )
+                    cog: RCE_Cog | Cog = self.bot.get_cog(name="RCE_Cog")
+                    await cog.kill_my_shell(
+                        broadcaster=broadcaster,
+                        chatter=chatter,
+                        event=event,
+                    )
+
+                if event.reward.title == "VIP" and (
+                    self.bot.config.get_bot_config()
+                    .get("bot_features")
+                    .get("cogs")
+                    .get("vip_cog")
+                    .get("enable_vip_cog")
+                ):
+                    broadcaster: User = (
+                        await self.fetch_users(ids=[event.channel_id])
+                    )[0]
+                    chatter: Chatter | PartialChatter = broadcaster.channel.get_chatter(
+                        name=event.user.name
+                    )
+                    cog: VIP_Cog | Cog = self.bot.get_cog(name="VIP_Cog")
+                    await cog.add_channel_vip(
+                        broadcaster=broadcaster,
+                        chatter=chatter,
+                        event=event,
+                    )
 
     async def start_pubsub(self):
         # Start listening to supported PubSub topics for channel points and bits
@@ -51,11 +110,14 @@ class CustomPubSubClient(Client):
 class CustomPubSubPool(pubsub.PubSubPool):
     async def auth_fail_hook(self, topics: List[pubsub.Topic]):
         """
-        This function is a coroutine. This is a hook that can be overridden in a subclass. From this hook, you can refresh expired tokens (or prompt a user for new ones), and resubscribe to the events.
-        The topics will not be automatically resubscribed to. You must do it yourself by calling subscribe_topics() with the topics after obtaining new tokens.
+        This function is a coroutine. This is a hook that can be overridden in a subclass. From this hook, you can
+        refresh expired tokens (or prompt a user for new ones), and resubscribe to the events.
+        The topics will not be automatically resubscribed to. You must do it yourself by calling subscribe_topics()
+        with the topics after obtaining new tokens.
 
         Parameters:
-        - topics (List[Topic]): The topics that have been de-authorized. Typically, these will all contain the same token.
+        - topics (List[Topic]): The topics that have been de-authorized.
+        Typically, these will all contain the same token.
 
         https://twitchio.dev/en/latest/exts/pubsub.html#twitchio.ext.pubsub.PubSubPool.auth_fail_hook
         """

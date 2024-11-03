@@ -133,15 +133,15 @@ class CustomEventSubClient(eventsub.EventSubClient):
 
     async def delete_all_event_subscriptions(self):
         """before registering new event subscriptions remove old event subs"""
-        self.client._http.token = self.bot_oauth_token
-        self.client._http.__init__(client=self, token=self.bot_oauth_token)
+        self._http.token = self.bot_oauth_token
+        self._http.__init__(client=self, token=self.bot_oauth_token)
         try:
-            es_subs = await self.client._http.get_subscriptions()
+            es_subs = await self._http.get_subscriptions()
             print(
                 f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
             )
             for es_sub in es_subs:
-                await self.client._http.delete_subscription(es_sub)
+                await self._http.delete_subscription(es_sub)
                 print(
                     f"{Fore.RED}Deleting the event subscription with id: "
                     f"{Fore.MAGENTA}{es_sub.id}{Fore.RED}.{Style.RESET_ALL}"
@@ -152,8 +152,8 @@ class CustomEventSubClient(eventsub.EventSubClient):
 
     async def delete_event_subscriptions(self, broadcasters: List[User]):
         """before registering new event subscriptions remove old event subs"""
-        self.client._http.__init__(client=self, token=self.bot_oauth_token)
-        es_subs = await self.client._http.get_subscriptions()
+        self._http.__init__(client=self, token=self.bot_oauth_token)
+        es_subs = await self._http.get_subscriptions()
         print(
             f"{Fore.RED}Found {Fore.MAGENTA}{len(es_subs)}{Fore.RED} event subscription(s).{Style.RESET_ALL}"
         )
@@ -166,7 +166,7 @@ class CustomEventSubClient(eventsub.EventSubClient):
                 and int(es_sub.condition["to_broadcaster_user_id"])
                 == broadcasters[0].id
             ):
-                await self.client._http.delete_subscription(es_sub)
+                await self._http.delete_subscription(es_sub)
                 print(
                     f"{Fore.RED}Deleting the event subscription with id: "
                     f"{Fore.MAGENTA}{es_sub.id}{Fore.RED} for channel "

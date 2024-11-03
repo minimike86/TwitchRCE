@@ -1,12 +1,22 @@
+import logging
+
 import twitchio
+from twitchio import PartialUser, User, Chatter, PartialChatter
 from twitchio.ext import commands, pubsub
 
-from twitchrce import custom_bot
+from custom_bot import CustomBot
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot: custom_bot.CustomBot):
+    def __init__(self, bot: CustomBot):
         self.bot = bot
 
     @commands.Cog.event()
@@ -17,88 +27,55 @@ class VIPCog(commands.Cog):
 
     async def add_channel_vip(
         self,
-        channel_id: int,
-        author_id: str,
-        author_login: str,
+        broadcaster: User | PartialUser,
+        chatter: Chatter | PartialChatter,
         event: pubsub.PubSubChannelPointsMessage,
     ):
-        broadcaster = await self.bot._http.get_users(ids=[channel_id], logins=[])
-        broadcaster_access_token_resultset = self.bot.database.fetch_user_access_token(
-            broadcaster_id=broadcaster[0]["id"]
-        )
-        broadcaster_access_token: str = broadcaster_access_token_resultset[
-            "access_token"
-        ]
-        mod_access_token_resultset = self.bot.database.fetch_user_access_token(
-            broadcaster_id=self.bot.user_id
-        )
-        mod_access_token: str = mod_access_token_resultset["access_token"]
-
-        # Get list of channel mods
-        mods = await self.bot._http.get_channel_moderators(
-            token=broadcaster_access_token, broadcaster_id=str(broadcaster[0]["id"])
-        )
-        mods_user_ids = [str(mod["user_id"]) for mod in mods]
-
-        # Get list of channel vips
-        vips = await self.bot._http.get_channel_vips(
-            token=broadcaster_access_token, broadcaster_id=str(broadcaster[0]["id"])
-        )
-        vips_user_ids = [str(vip["user_id"]) for vip in vips]
-
-        if author_id in mods_user_ids:
+        if chatter.is_mod:
             """Check if the redeemer is already a moderator and abort"""
-            print(f"{author_login} is already a MOD")
-            await self.bot._http.update_reward_redemption_status(
-                token=broadcaster_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
+            logger.info(f"{chatter.display_name} is already a MOD")
+            await self.bot.update_reward_redemption_status(
+                broadcaster=broadcaster,
                 reward_id=event.id,
                 custom_reward_id=event.reward.id,
                 status=False,
             )
-            await self.bot._http.post_chat_announcement(
-                token=mod_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
-                moderator_id=self.bot.user_id,
-                message=f"{author_login} is already a MOD; your channel points have been refunded",
+            await self.bot.post_chat_announcement(
+                broadcaster=broadcaster,
+                moderator=self.bot.bot_user,
+                message=f"{chatter.display_name} is already a MOD your channel points have been refunded",
                 color="orange",
             )
-        elif author_id in vips_user_ids:
+
+        elif chatter.is_vip:
             """Check if the redeemer is already a VIP and abort"""
-            print(f"{author_login} is already a VIP")
-            await self.bot._http.update_reward_redemption_status(
-                token=broadcaster_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
+            logger.info(f"{chatter.display_name} is already a VIP")
+            await self.bot.update_reward_redemption_status(
+                broadcaster=broadcaster,
                 reward_id=event.id,
                 custom_reward_id=event.reward.id,
                 status=False,
             )
-            await self.bot._http.post_chat_announcement(
-                token=mod_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
-                moderator_id=self.bot.user_id,
-                message=f"{author_login} is already a VIP; your channel points have been refunded",
+            await self.bot.post_chat_announcement(
+                broadcaster=broadcaster,
+                moderator=self.bot.bot_user,
+                message=f"{chatter.display_name} is already a VIP your channel points have been refunded",
                 color="orange",
             )
 
         else:
             """Add redeemer as a VIP, and auto-fulfill the redemption"""
-            await self.bot._http.post_channel_vip(
-                token=broadcaster_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
-                user_id=author_id,
-            )
-            await self.bot._http.update_reward_redemption_status(
-                token=broadcaster_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
+            broadcaster_token = "broadcaster_token"  # TODO: Get actual broadcaster_token from database
+            await broadcaster.add_channel_vip(token=broadcaster_token, user_id=int(chatter.id))
+            await self.bot.update_reward_redemption_status(
+                broadcaster=broadcaster,
                 reward_id=event.id,
                 custom_reward_id=event.reward.id,
                 status=True,
             )
-            await self.bot._http.post_chat_announcement(
-                token=mod_access_token,
-                broadcaster_id=str(broadcaster[0]["id"]),
-                moderator_id=self.bot.user_id,
-                message=f"Welcome {author_login} to the VIP family!",
+            await self.bot.post_chat_announcement(
+                broadcaster=broadcaster,
+                moderator=self.bot.bot_user,
+                message=f"Welcome {chatter.display_name} to the VIP family!",
                 color="green",
             )

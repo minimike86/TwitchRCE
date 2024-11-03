@@ -4,23 +4,26 @@ import random
 import re
 from typing import List, Optional, Union
 
+import boto3
 import twitchio
+from botocore.exceptions import ClientError
 from colorama import Fore, Style
-from twitchio import PartialUser, User, Unauthorized, HTTPException
-from twitchio.ext import commands, eventsub, pubsub
+from twitchio import HTTPException, PartialUser, Unauthorized, User
+from twitchio.ext import commands, eventsub
 from twitchio.ext.eventsub import (
+    ChannelCharityDonationData,
     ChannelRaidData,
     ChannelSubscribeData,
     ChannelSubscriptionGiftData,
-    StreamOnlineData,
     StreamOfflineData,
-    ChannelCharityDonationData,
+    StreamOnlineData,
 )
+from utils.utils import Utils
+
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
 from twitchrce.config.bot_config import BotConfig
 from twitchrce.esclient import CustomEventSubClient
 from twitchrce.psclient import CustomPubSubClient
-from utils.utils import Utils
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -58,19 +61,34 @@ class CustomBot(commands.Bot):
         if self.config.get_bot_config().get("bot_features").get("enable_psclient"):
             for channel in self.config.BOT_INITIAL_CHANNELS:
                 self.ps_client = CustomPubSubClient(
+                    bot=self,
                     users_channel_id=int(channel.get("id")),
                     bot_oauth_token=self.bot_oauth_token,
                 )
 
         if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
-            eventsub_public_url = None  # TODO: Get EC2 Instance Public DNS URL
-            if eventsub_public_url:
-                self.es_client: CustomEventSubClient = CustomEventSubClient(
-                    client=self,
-                    webhook_secret="some_secret_string",
-                    callback_route=f"{eventsub_public_url}",
-                    bot_oauth_token=self.bot_oauth_token,
-                )
+            eventsub_public_url = None
+            try:
+                region_name = self.config.get_bot_config().get("aws").get("region_name")
+                ec2 = boto3.client("ec2", region_name=region_name)
+                # TODO: Don't hardcode InstanceIds
+                response = ec2.describe_instances(InstanceIds=["i-0100638f13e5451d8"])
+                if response.get("Reservations"):
+                    public_dns_name = (
+                        response.get("Reservations")[0]
+                        .get("Instances")[0]
+                        .get("PublicDnsName")
+                    )
+                    eventsub_public_url = f"https://{public_dns_name}"
+                if eventsub_public_url:
+                    self.es_client: CustomEventSubClient = CustomEventSubClient(
+                        client=self,
+                        webhook_secret="some_secret_string",
+                        callback_route=f"{eventsub_public_url}",
+                        bot_oauth_token=self.bot_oauth_token,
+                    )
+            except ClientError as client_error:
+                logger.error(msg=client_error)
 
         # TODO: Make persistent
         self.death_count = {}
@@ -85,7 +103,7 @@ class CustomBot(commands.Bot):
         ):
             from twitchrce.cogs.rce import RCECog
 
-            self.add_cog(RCECog(self))
+            self.add_cog(RCECog(bot=self))
 
         if (
             self.config.get_bot_config()
@@ -96,7 +114,7 @@ class CustomBot(commands.Bot):
         ):
             from twitchrce.cogs.vip import VIPCog
 
-            self.add_cog(VIPCog(self))
+            self.add_cog(VIPCog(bot=self))
 
         @self.event()
         async def event_error(error: Exception, data: Optional[str] = None):
@@ -153,37 +171,6 @@ class CustomBot(commands.Bot):
                 f"{user.name}{Style.RESET_ALL}"
             )
             pass
-
-        @self.event()
-        async def event_pubsub_channel_points(event: pubsub.PubSubChannelPointsMessage):
-            # Log redemption request - reward: CustomReward, user: PartialUser
-            logger.info(
-                f"{Fore.RED}[PubSub][ChannelPoints]: {event.reward.id}, {event.reward.title}, {event.reward.cost} | "
-                f"User: {event.user.id}, {event.user.name}{Style.RESET_ALL}"
-            )
-
-            # Check if reward can be redeemed at this time
-            if not event.reward.paused and event.reward.enabled:
-                """We have to check redemption names as id's are randomly allocated when redemption is added"""
-
-                if event.reward.title == "Kill My Shell":
-                    # noinspection PyTypeChecker
-                    rce_cog: RCECog = self.cogs["RCECog"]
-                    await rce_cog.killmyshell(
-                        broadcaster_id=event.channel_id,
-                        author_login=event.user.name,
-                        event=event,
-                    )
-
-                if event.reward.title == "VIP":
-                    # noinspection PyTypeChecker
-                    vip_cog: VIPCog = self.cogs["VIPCog"]
-                    await vip_cog.add_channel_vip(
-                        channel_id=event.channel_id,
-                        author_id=event.user.id,
-                        author_login=event.user.name,
-                        event=event,
-                    )
 
         @self.event()
         async def event_eventsub_notification_followV2(
@@ -784,7 +771,9 @@ class CustomBot(commands.Bot):
             """Handle commands overriding the default `event_message`."""
             await self.handle_commands(message)
 
-    async def add_kill_my_shell_redemption_reward(self, broadcaster: PartialUser):
+    async def add_kill_my_shell_redemption_reward(
+        self, broadcaster: User | PartialUser
+    ):
         """
         Adds channel point redemption that immediately closes the last terminal window that was opened without warning
         """
@@ -807,7 +796,7 @@ class CustomBot(commands.Bot):
                 f"{Fore.RED}Added {Fore.MAGENTA}'Kill My Shell'{Fore.RED} channel point redemption.{Style.RESET_ALL}"
             )
 
-    async def add_vip_auto_redemption_reward(self, broadcaster: PartialUser):
+    async def add_vip_auto_redemption_reward(self, broadcaster: User | PartialUser):
         """Adds channel point redemption that adds the user to the VIP list automatically"""
         vips = await self._http.get_channel_vips(
             token=self.config.BOT_OAUTH_TOKEN, broadcaster_id=broadcaster.id, first=100
@@ -831,7 +820,7 @@ class CustomBot(commands.Bot):
                 f"{Fore.RED}Added {Fore.MAGENTA}'VIP'{Fore.RED} channel point redemption.{Style.RESET_ALL}"
             )
 
-    async def delete_all_custom_rewards(self, broadcaster: PartialUser):
+    async def delete_all_custom_rewards(self, broadcaster: User | PartialUser):
         """deletes all custom rewards (API limits deletes to those created by the bot)
         Requires a user access token that includes the channel:manage:redemptions scope.
         """
@@ -858,10 +847,25 @@ class CustomBot(commands.Bot):
                     f"[{Fore.MAGENTA}title={reward['title']}{Fore.RED}]{Style.RESET_ALL}"
                 )
 
+    async def update_reward_redemption_status(
+        self,
+        broadcaster: User | PartialUser,
+        reward_id: str,
+        custom_reward_id: str,
+        status: bool,
+    ) -> None:
+        self._http.update_reward_redemption_status(
+            token=self.bot_oauth_token,
+            broadcaster_id=broadcaster.id,
+            reward_id=reward_id,
+            custom_reward_id=custom_reward_id,
+            status=status,
+        )
+
     async def announce_shoutout(
         self,
         ctx: Optional[commands.Context],
-        broadcaster: PartialUser,
+        broadcaster: User | PartialUser,
         channel: any,
         color: str,
     ):
@@ -889,9 +893,9 @@ class CustomBot(commands.Bot):
         error_count = 0
         try:
             await self.post_chat_announcement(
-                broadcaster_id=broadcaster.id,
+                broadcaster=broadcaster,
                 message="".join(message),
-                moderator_id=self.bot_user.id,  # Moderator ID must match the user ID in the user access token.
+                moderator=self.bot_user,
                 color=color,
             )
 
@@ -932,24 +936,24 @@ class CustomBot(commands.Bot):
 
     async def post_chat_announcement(
         self,
-        broadcaster_id: str,
-        moderator_id: str,
+        broadcaster: User | PartialUser,
+        moderator: User | PartialUser,
         message: str,
         color: str,
     ):
         """Post a shoutout announcement to chat; color = blue, green, orange, purple, or primary"""
         logger.info(
             f"{Fore.LIGHTWHITE_EX}Trying to send chat announcement as "
-            f"Broadcaster ID: [{Fore.LIGHTRED_EX}{broadcaster_id}{Fore.LIGHTWHITE_EX}], "
-            f"Moderator ID: [{Fore.LIGHTGREEN_EX}{moderator_id}{Fore.LIGHTWHITE_EX}], "
+            f"Broadcaster ID: [{Fore.LIGHTRED_EX}{broadcaster.id}{Fore.LIGHTWHITE_EX}], "
+            f"Moderator ID: [{Fore.LIGHTGREEN_EX}{moderator.id}{Fore.LIGHTWHITE_EX}], "
             f"and using token: [{Fore.LIGHTMAGENTA_EX}OAuth {Utils().redact_secret_string(self.bot_oauth_token)}"
             f"{Fore.LIGHTWHITE_EX}].{Style.RESET_ALL}"
         )
         try:
             await self._http.post_chat_announcement(
                 token=self.bot_oauth_token,
-                broadcaster_id=broadcaster_id,
-                moderator_id=moderator_id,
+                broadcaster_id=broadcaster.id,
+                moderator_id=moderator.id,
                 message=message,
                 color=color,
             )
@@ -972,28 +976,28 @@ class CustomBot(commands.Bot):
     """
 
     @commands.command(aliases=["enablesounds"])
-    async def soundson(self, ctx: commands.Context):
+    async def sounds_on(self, ctx: commands.Context):
         from cogs.sounds_cog import SoundsCog
 
         self.add_cog(SoundsCog(self))
         await ctx.send(f"Sound Commands Enabled!")
 
     @commands.command(aliases=["disablesounds"])
-    async def soundsoff(self, ctx: commands.Context):
+    async def sounds_off(self, ctx: commands.Context):
         from cogs.sounds_cog import SoundsCog
 
         self.remove_cog(SoundsCog(self).name)
         await ctx.send(f"Sound Commands Disabled!")
 
-    @commands.command(aliases=["enableusercommands"])
-    async def usercommandson(self, ctx: commands.Context):
+    @commands.command()
+    async def user_commands_on(self, ctx: commands.Context):
         from cogs.user_cog import UserCog
 
         self.add_cog(UserCog(self))
         await ctx.send(f"User Commands Enabled!")
 
-    @commands.command(aliases=["disableusercommands"])
-    async def usercommandsoff(self, ctx: commands.Context):
+    @commands.command()
+    async def user_commands_off(self, ctx: commands.Context):
         from cogs.user_cog import UserCog
 
         self.remove_cog(UserCog(self).name)
@@ -1207,7 +1211,9 @@ class CustomBot(commands.Bot):
         else:
             # Delete the chat message
             try:
-                broadcaster_id: int = (await self.fetch_users(names=[ctx.channel.name]))[0].id
+                broadcaster_id: int = (
+                    await self.fetch_users(names=[ctx.channel.name])
+                )[0].id
                 logger.debug(
                     f"{Fore.LIGHTWHITE_EX}Deleting chat message. "
                     f"{Fore.LIGHTRED_EX}token{Fore.LIGHTWHITE_EX}: "

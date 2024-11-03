@@ -174,11 +174,12 @@ class TwitchApiAuth:
             return True
 
     async def get_users(
-        self, access_token: str, ids=Optional[int], logins=Optional[str]
+        self, access_token: str, _ids=Optional[int], _logins=Optional[str]
     ):
         """
         https://dev.twitch.tv/docs/authentication/validate-tokens/
-        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens hourly as required.
+        WARNING Twitch periodically conducts audits to discover applications that are not validating access tokens
+        hourly as required.
         """
         url = "https://api.twitch.tv/helix/users"
         headers = {
