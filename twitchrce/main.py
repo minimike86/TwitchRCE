@@ -132,7 +132,6 @@ async def setup_bot() -> CustomBot:
         # the bot user has no twitch access token stored in db so can't use chat programmatically
         if not _bot_user.get("access_token"):
             # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
-            # TODO: Deduplicate code
             logger.error(
                 f"{Fore.CYAN}Bot has no access_token. Authenticate to update your token!{Style.RESET_ALL}"
             )
@@ -157,7 +156,6 @@ async def setup_bot() -> CustomBot:
         # database doesn't have an item for the bot_user_id provided
 
         # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
-        # TODO: Deduplicate code
         logger.error(
             f"{Fore.CYAN}Failed to get bot user object for "
             f"{Fore.MAGENTA}{config.get_bot_config().get('twitch').get('bot_user_id')}{Fore.CYAN}!"

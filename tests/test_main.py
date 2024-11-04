@@ -4,6 +4,7 @@ import logging
 import boto3
 import pytest
 from moto import mock_aws
+from twitchio import BroadcasterTypeEnum, UserTypeEnum
 
 from twitchrce.config import bot_config
 
@@ -42,8 +43,98 @@ def set_environment_variables(monkeypatch):
     monkeypatch.setenv("VIRUS_TOTAL_API_KEY", "xyz")
 
 
+@pytest.fixture
+def bot_user(mocker):
+    bot_user = mocker.Mock()
+    bot_user.id = 123456789
+    bot_user.name = "name"
+    bot_user.display_name = "display_name"
+    bot_user.type = UserTypeEnum.none
+    bot_user.broadcaster_type = BroadcasterTypeEnum.none
+    bot_user.description = "description"
+    return bot_user
+
+
+@pytest.fixture
+def db_item_with_missing_access_token():
+    return dict(
+        id=875992093,
+        access_token=None,
+        expires_in=12345,
+        login="login",
+        refresh_token="refresh_token_xyz789",
+        scopes=[
+            {"S": "analytics:read:extensions"},
+            {"S": "analytics:read:games"},
+            {"S": "bits:read"},
+            {"S": "channel:bot"},
+            {"S": "channel:edit:commercial"},
+            {"S": "channel:manage:broadcast"},
+            {"S": "channel:manage:guest_star"},
+            {"S": "channel:manage:polls"},
+            {"S": "channel:manage:predictions"},
+            {"S": "channel:manage:raids"},
+            {"S": "channel:manage:redemptions"},
+            {"S": "channel:manage:vips"},
+            {"S": "channel:moderate"},
+            {"S": "channel:read:ads"},
+            {"S": "channel:read:charity"},
+            {"S": "channel:read:editors"},
+            {"S": "channel:read:goals"},
+            {"S": "channel:read:guest_star"},
+            {"S": "channel:read:hype_train"},
+            {"S": "channel:read:polls"},
+            {"S": "channel:read:predictions"},
+            {"S": "channel:read:redemptions"},
+            {"S": "channel:read:subscriptions"},
+            {"S": "channel:read:vips"},
+            {"S": "chat:edit"},
+            {"S": "chat:read"},
+            {"S": "clips:edit"},
+            {"S": "moderation:read"},
+            {"S": "moderator:manage:announcements"},
+            {"S": "moderator:manage:automod"},
+            {"S": "moderator:manage:banned_users"},
+            {"S": "moderator:manage:blocked_terms"},
+            {"S": "moderator:manage:chat_messages"},
+            {"S": "moderator:manage:chat_settings"},
+            {"S": "moderator:manage:guest_star"},
+            {"S": "moderator:manage:shield_mode"},
+            {"S": "moderator:manage:shoutouts"},
+            {"S": "moderator:manage:unban_requests"},
+            {"S": "moderator:read:automod_settings"},
+            {"S": "moderator:read:blocked_terms"},
+            {"S": "moderator:read:chat_settings"},
+            {"S": "moderator:read:chatters"},
+            {"S": "moderator:read:followers"},
+            {"S": "moderator:read:guest_star"},
+            {"S": "moderator:read:shield_mode"},
+            {"S": "moderator:read:shoutouts"},
+            {"S": "moderator:read:suspicious_users"},
+            {"S": "moderator:read:unban_requests"},
+            {"S": "user:bot"},
+            {"S": "user:edit:broadcast"},
+            {"S": "user:edit:follows"},
+            {"S": "user:manage:blocked_users"},
+            {"S": "user:manage:chat_color"},
+            {"S": "user:manage:whispers"},
+            {"S": "user:read:blocked_users"},
+            {"S": "user:read:broadcast"},
+            {"S": "user:read:chat"},
+            {"S": "user:read:email"},
+            {"S": "user:read:emotes"},
+            {"S": "user:read:follows"},
+            {"S": "user:read:moderated_channels"},
+            {"S": "user:read:subscriptions"},
+            {"S": "user:write:chat"},
+            {"S": "whispers:edit"},
+            {"S": "whispers:read"},
+        ],
+    )
+
+
 @mock_aws
-def test_main(mocker, capfd):
+def test_main(mocker, capfd, bot_user):
     from twitchrce.main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
@@ -96,21 +187,8 @@ def test_main(mocker, capfd):
     mock_user_table = mocker.patch("twitchrce.main.user_table")
     mock_user_table.return_value = mock_table
 
-    mock_describe_instances_response = {
-        "Reservations": [
-            {
-                "Instances": [
-                    {
-                        "InstanceId": "i-0100638f13e5451d8",
-                        "PublicDnsName": "ec2-203-0-113-25.compute-1.amazonaws.com",
-                        "State": {"Name": "running"},
-                    }
-                ]
-            }
-        ]
-    }
-    mock_describe_instances = mocker.patch("twitchrce.main.ec2.describe_instances")
-    mock_describe_instances.return_value = mock_describe_instances_response
+    mock_bot_fetch_users = mocker.patch("twitchio.client.Client.fetch_users")
+    mock_bot_fetch_users.return_value = [bot_user]
 
     mock_bot_psclient = mocker.patch("twitchrce.custom_bot.CustomBot.__psclient_init__")
     mock_bot_psclient.return_value = None
@@ -135,7 +213,9 @@ def test_main(mocker, capfd):
 
 
 @mock_aws
-def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(mocker):
+def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
+    mocker, db_item_with_missing_access_token
+):
     from twitchrce.main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
@@ -147,7 +227,7 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(mock
         "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
     )
     mock_table_name = "user"
-    mock_dynamodb.create_table(
+    mock_table = mock_dynamodb.create_table(
         TableName=mock_table_name,
         KeySchema=[
             {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
@@ -160,24 +240,26 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(mock
             "WriteCapacityUnits": 5,
         },
     )
-    mock_table = mock_dynamodb.Table(mock_table_name)
+    mock_table.meta.client.get_waiter("table_exists").wait(TableName=mock_table_name)
     mock_table.put_item(
         Item={
             "id": "875992093",
-            "access_token": None,
+            "access_token": "invalid_token",
             "client_id": BOT_CONFIG.get("twitch").get("client_id"),
             "expires_in": 12345,
             "login": "username_bot",
             "refresh_token": "refresh_token_abc123",
         }
     )
+    mock_user_table = mocker.patch("twitchrce.main.user_table")
+    mock_user_table.return_value = mock_table
 
     mock_get_item = mocker.patch("twitchrce.main.user_table.get_item")
-    mock_get_item.return_value = mock_table.get_item(
-        Key={"id": BOT_CONFIG.get("twitch").get("bot_user_id")}
-    )
+    mock_get_item.return_value = {"Item": db_item_with_missing_access_token}
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="Bot has no access_token. Authenticate to update your token!"
+    ):
         event_loop = asyncio.get_event_loop()
         event_loop.run_until_complete(setup_bot())
 
@@ -214,14 +296,17 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
         Key={"id": BOT_CONFIG.get("twitch").get("bot_user_id")}
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Bot user is not in the database. Authenticate to get an access token!",
+    ):
         event_loop = asyncio.get_event_loop()
         event_loop.run_until_complete(setup_bot())
 
 
 @mock_aws
 def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_reservations(
-    mocker, capfd
+    mocker, capfd, bot_user
 ):
     from twitchrce.main import setup_bot
 
@@ -271,14 +356,13 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
         ),
     ]
 
+    mock_bot_fetch_users = mocker.patch("twitchio.client.Client.fetch_users")
+    mock_bot_fetch_users.return_value = [bot_user]
+
     mock_check_valid_token = mocker.patch(
         "twitchrce.utils.utils.Utils.check_valid_token"
     )
     mock_check_valid_token.return_value = True
-
-    mock_describe_instances_response = {}
-    mock_describe_instances = mocker.patch("twitchrce.main.ec2.describe_instances")
-    mock_describe_instances.return_value = mock_describe_instances_response
 
     event_loop = asyncio.get_event_loop()
     event_loop.run_until_complete(setup_bot())

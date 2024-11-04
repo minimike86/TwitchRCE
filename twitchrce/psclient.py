@@ -1,14 +1,16 @@
 import logging
-from typing import List
+from typing import TYPE_CHECKING, List
 
 import twitchio
 from cogs.rce import RCECog as RCE_Cog
 from cogs.vip import VIPCog as VIP_Cog
 from colorama import Fore, Style
-from custom_bot import CustomBot
 from twitchio import Chatter, Client, PartialChatter, User
 from twitchio.ext import pubsub
 from twitchio.ext.commands import Cog
+
+if TYPE_CHECKING:
+    from twitchrce.custom_bot import CustomBot
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -28,7 +30,7 @@ class CustomPubSubClient(Client):
     https://twitchio.dev/en/stable/exts/pubsub.html
     """
 
-    def __init__(self, bot: CustomBot, users_channel_id: int, bot_oauth_token: str):
+    def __init__(self, bot: "CustomBot", users_channel_id: int, bot_oauth_token: str):
         super().__init__(token=bot_oauth_token)
         self.bot = bot
         self.client = twitchio.Client(token=bot_oauth_token)

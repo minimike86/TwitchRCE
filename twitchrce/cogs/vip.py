@@ -1,9 +1,12 @@
 import logging
+from typing import TYPE_CHECKING
 
 import twitchio
-from custom_bot import CustomBot
 from twitchio import Chatter, PartialChatter, PartialUser, User
 from twitchio.ext import commands, pubsub
+
+if TYPE_CHECKING:
+    from twitchrce.custom_bot import CustomBot
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class VIPCog(commands.Cog):
 
-    def __init__(self, bot: CustomBot):
+    def __init__(self, bot: "CustomBot"):
         self.bot = bot
 
     @commands.Cog.event()
