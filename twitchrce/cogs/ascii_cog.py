@@ -1,7 +1,16 @@
+import logging
+
 import twitchio
 from twitchio.ext import commands
 
 from twitchrce import custom_bot
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class AsciiCog(commands.Cog):
@@ -10,10 +19,10 @@ class AsciiCog(commands.Cog):
         self.bot = bot
 
     @commands.Cog.event()
-    async def event_message(self, message: twitchio.Message):
+    async def event_message(self, message: twitchio.Message):  # pragma: no cover
         if message.echo:
             return
-        # print('RCECog: ', message.author.name, message.content)
+        logger.info('[RCECog]: ', message.author.name, message.content)
 
     @commands.command()
     async def kill_everyone(self, ctx: commands.Context):
@@ -49,7 +58,7 @@ class AsciiCog(commands.Cog):
         )
 
     @commands.command()
-    async def spiderswarm(self, ctx: commands.Context):
+    async def spider_swarm(self, ctx: commands.Context):
         await ctx.send(
             f"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ "
             f"╱╲⎝⧹༼◕ ͜ﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞﱞo.◕ ༽⧸⎠╱╲"
