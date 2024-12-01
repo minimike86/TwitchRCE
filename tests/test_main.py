@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import boto3
 import pytest
@@ -21,7 +22,7 @@ MOCK_REFRESH_ACCESS_TOKEN_RESPONSE_FAIL = {
 }
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -41,6 +42,7 @@ def set_environment_variables(monkeypatch):
     monkeypatch.setenv("BOT_JOIN_CHANNEL_ID", "123456")
     monkeypatch.setenv("MAX_VIP_SLOTS", "10")
     monkeypatch.setenv("VIRUS_TOTAL_API_KEY", "xyz")
+    monkeypatch.setenv("DYNAMODB_USER_TABLE_NAME", "User")
 
 
 @pytest.fixture
@@ -159,9 +161,9 @@ def test_main(mocker, capfd, bot_user):
     mock_dynamodb = boto3.resource(
         "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
     )
-    mock_table_name = "user"
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
     mock_dynamodb.create_table(
-        TableName=mock_table_name,
+        TableName=table_name,
         KeySchema=[
             {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
         ],
@@ -173,7 +175,7 @@ def test_main(mocker, capfd, bot_user):
             "WriteCapacityUnits": 5,
         },
     )
-    mock_table = mock_dynamodb.Table(mock_table_name)
+    mock_table = mock_dynamodb.Table(table_name)
     mock_table.put_item(
         Item={
             "id": "123456",
@@ -226,9 +228,9 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
     mock_dynamodb = boto3.resource(
         "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
     )
-    mock_table_name = "user"
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
     mock_table = mock_dynamodb.create_table(
-        TableName=mock_table_name,
+        TableName=table_name,
         KeySchema=[
             {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
         ],
@@ -240,7 +242,7 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
             "WriteCapacityUnits": 5,
         },
     )
-    mock_table.meta.client.get_waiter("table_exists").wait(TableName=mock_table_name)
+    mock_table.meta.client.get_waiter("table_exists").wait(TableName=table_name)
     mock_table.put_item(
         Item={
             "id": "875992093",
@@ -276,9 +278,9 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
     mock_dynamodb = boto3.resource(
         "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
     )
-    mock_table_name = "user"
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
     mock_dynamodb.create_table(
-        TableName=mock_table_name,
+        TableName=table_name,
         KeySchema=[
             {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
         ],
@@ -290,7 +292,7 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
             "WriteCapacityUnits": 5,
         },
     )
-    mock_table = mock_dynamodb.Table(mock_table_name)
+    mock_table = mock_dynamodb.Table(table_name)
     mock_get_item = mocker.patch("twitchrce.main.user_table.get_item")
     mock_get_item.return_value = mock_table.get_item(
         Key={"id": BOT_CONFIG.get("twitch").get("bot_user_id")}
@@ -318,9 +320,9 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
     mock_dynamodb = boto3.resource(
         "dynamodb", region_name=BOT_CONFIG.get("aws").get("region_name")
     )
-    mock_table_name = "user"
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
     mock_dynamodb.create_table(
-        TableName=mock_table_name,
+        TableName=table_name,
         KeySchema=[
             {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
         ],
@@ -332,7 +334,7 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
             "WriteCapacityUnits": 5,
         },
     )
-    mock_table = mock_dynamodb.Table(mock_table_name)
+    mock_table = mock_dynamodb.Table(table_name)
     mock_table.put_item(
         Item={
             "id": "875992093",

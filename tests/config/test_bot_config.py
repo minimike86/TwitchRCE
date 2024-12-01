@@ -19,6 +19,7 @@ def set_environment_variables(monkeypatch):
         "https://12345.execute-api.eu-west-2.amazonaws.com",
     )
     monkeypatch.setenv("API_GATEWAY_ROUTE", "/twitch/oauth2/authorization_code")
+    monkeypatch.setenv("DYNAMODB_USER_TABLE_NAME", "MSecBot_User")
 
 
 def test_config(monkeypatch):
@@ -79,7 +80,7 @@ def test_config(monkeypatch):
     )
     assert (
         BOT_CONFIG.get("bot_features").get("virus_total").get("enable_virus_total")
-        is False
+        is True
     )
     assert (
         BOT_CONFIG.get("bot_features").get("virus_total").get("virus_total_api_key")

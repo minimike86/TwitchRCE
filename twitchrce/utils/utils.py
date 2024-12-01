@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple
 
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
@@ -64,8 +65,7 @@ class Utils:
             raise credential_error
         return auth_result.get("access_token")
 
-    async def check_valid_token(self, user: any) -> bool:
-        # TODO: Replace with aws calls
+    async def check_valid_token(self, user: any) -> Tuple[bool, str]:
         """
         Asynchronously checks if a user's access token is valid. If the token is invalid,
         attempts to refresh the token and validates it again.
@@ -80,15 +80,15 @@ class Utils:
         """
         from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
 
-        is_valid_token = await TwitchApiAuth().validate_token(
-            access_token=user.get("access_token")
-        )
+        access_token = user.get("access_token")
+        is_valid_token = await TwitchApiAuth().validate_token(access_token=access_token)
         if not is_valid_token:
-            access_token = await self.refresh_user_token(user=user)
+            refreshed_access_token = await self.refresh_user_token(user=user)
             is_valid_token = await TwitchApiAuth().validate_token(
-                access_token=access_token
+                access_token=refreshed_access_token
             )
-        return is_valid_token
+            return is_valid_token, refreshed_access_token
+        return is_valid_token, access_token
 
     @staticmethod
     def redact_secret_string(secret_string: str, visible_chars: int = 4) -> str:

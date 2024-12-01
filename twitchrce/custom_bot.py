@@ -7,7 +7,7 @@ from typing import List, Optional, Union
 import boto3
 import twitchio
 from botocore.exceptions import ClientError
-from colorama import Fore, Style
+from colorama import Fore, Style, Back
 from twitchio import HTTPException, PartialUser, Unauthorized, User
 from twitchio.ext import commands, eventsub
 from twitchio.ext.eventsub import (
@@ -18,15 +18,15 @@ from twitchio.ext.eventsub import (
     StreamOfflineData,
     StreamOnlineData,
 )
-from utils.utils import Utils
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
 from twitchrce.config.bot_config import BotConfig
 from twitchrce.esclient import CustomEventSubClient
 from twitchrce.psclient import CustomPubSubClient
+from utils.utils import Utils
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -147,9 +147,7 @@ class CustomBot(commands.Bot):
                 f"{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
             )
             if self.config.get_bot_config().get("bot_features").get("announce_join"):
-                await _channel.send(
-                    f"has joined the chat! PowerUpL EntropyWins PowerUpR"
-                )
+                await _channel.send(f"has joined chat! PowerUpL EntropyWins PowerUpR")
             if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
                 # Side effect of joining channel it should start listening to event subscriptions
                 broadcasters: List[User] = await self.fetch_users(names=[_channel.name])
@@ -565,14 +563,6 @@ class CustomBot(commands.Bot):
                     f"as bot user: {Fore.LIGHTBLUE_EX}{self.nick}{Fore.LIGHTWHITE_EX} "
                     f"({Fore.LIGHTBLUE_EX}ID: {self.user_id}{Fore.LIGHTWHITE_EX})!{Style.RESET_ALL}"
                 )
-                # if (
-                #     self.config.get_bot_config()
-                #     .get("bot_features")
-                #     .get("announce_join")
-                # ):
-                #     await channel.send(
-                #         f"has joined the chat! PowerUpL EntropyWins PowerUpR"
-                #     )
 
             if (
                 self.config.get_bot_config()
@@ -590,10 +580,70 @@ class CustomBot(commands.Bot):
         if message.echo:
             return
         # Print the contents of our message to console...
+        include_channel = (
+            f"{Fore.LIGHTWHITE_EX}[{Back.BLACK}{Style.BRIGHT}📽{Fore.LIGHTWHITE_EX}: "
+            f"{Fore.LIGHTWHITE_EX}{str.upper(message.channel.name)}{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+        )
+        include_author = (
+            f"{Fore.LIGHTWHITE_EX}[{Back.BLACK}{Style.BRIGHT}‍🧏🏼‍️️{Fore.LIGHTWHITE_EX}: "
+            f"{Fore.LIGHTWHITE_EX}{str.upper(message.author.name)}{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+        )
+        include_is_broadcaster = (
+            (
+                f"{Fore.LIGHTWHITE_EX}[{Back.RESET}{Style.BRIGHT}{Fore.RED}"
+                f" 📽 BROADCASTER "
+                f"{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+            )
+            if message.author.is_broadcaster
+            else ""
+        )
+        include_is_moderator = (
+            (
+                f"{Fore.LIGHTWHITE_EX}[{Back.RESET}{Style.BRIGHT}{Fore.GREEN}"
+                f" ⚒ MOD "
+                f"{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}️]"
+            )
+            if message.author.is_mod
+            else ""
+        )
+        include_is_subscriber = (
+            (
+                f"{Fore.LIGHTWHITE_EX}[{Back.GREEN}{Style.BRIGHT}{Fore.LIGHTWHITE_EX}"
+                f" 💲 SUB "
+                f"{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+            )
+            if message.author.is_subscriber
+            else ""
+        )
+        include_is_turbo = (
+            (
+                f"{Fore.LIGHTWHITE_EX}[{Back.YELLOW}{Style.BRIGHT}{Fore.LIGHTWHITE_EX}"
+                f" ⚡ TURBO "
+                f"{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+            )
+            if bool(int(message.author.is_turbo))
+            else ""
+        )
+        include_is_vip = (
+            (
+                f"{Fore.LIGHTWHITE_EX}[{Back.LIGHTMAGENTA_EX}{Style.BRIGHT}{Fore.LIGHTWHITE_EX}"
+                f" ❤ VIP︎ "
+                f"{Back.RESET}{Style.RESET_ALL}{Fore.LIGHTWHITE_EX}]"
+            )
+            if message.author.is_vip
+            else ""
+        )
+        include_message = (
+            f"{Fore.LIGHTWHITE_EX}: {Fore.WHITE}{message.content}{Style.RESET_ALL}"
+        )
         logger.info(
-            f"{Fore.LIGHTWHITE_EX}[{Fore.LIGHTRED_EX}C:{message.channel.name}{Fore.LIGHTWHITE_EX}]"
-            f"{Fore.LIGHTWHITE_EX}[{Fore.LIGHTBLUE_EX}A:{message.author.name}{Fore.LIGHTWHITE_EX}]:"
-            f"{Fore.WHITE}{message.content}{Style.RESET_ALL}"
+            f"{include_channel}{include_author}"
+            f"{include_is_broadcaster}"
+            f"{include_is_moderator}"
+            f"{include_is_subscriber}"
+            f"{include_is_turbo}"
+            f"{include_is_vip}"
+            f"{include_message}"
         )
 
         """ Messages that include common bot spammer phrases auto-ban. """
@@ -851,6 +901,18 @@ class CustomBot(commands.Bot):
     async def hello(self, ctx: commands.Context):
         """type !hello to say hello to author"""
         await ctx.send(f"Hello {ctx.author.name}!")
+
+    @commands.command(aliases=["cls", "clr"])
+    async def clear(self, ctx: commands.Context):
+        """type !clear to clear chat messages"""
+        broadcaster: User = (await self.fetch_users(ids=[], names=[ctx.channel.name]))[
+            0
+        ]
+        bot_oauth = self.config.get_bot_config().get("twitch").get("bot_auth")
+        await broadcaster.delete_chat_messages(
+            token=bot_oauth.get("bot_oauth_token"),
+            moderator_id=bot_oauth.get("bot_user_id"),
+        )
 
     @commands.command()
     async def join(self, ctx: commands.Context):

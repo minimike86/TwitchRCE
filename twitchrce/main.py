@@ -20,7 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 """
 ██████   ██████  ████████         ██ ███    ██ ██ ████████ 
 ██   ██ ██    ██    ██            ██ ████   ██ ██    ██    
@@ -132,25 +131,23 @@ async def setup_bot() -> CustomBot:
         # the bot user has no twitch access token stored in db so can't use chat programmatically
         if not _bot_user.get("access_token"):
             # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
-            logger.error(
-                f"{Fore.CYAN}Bot has no access_token. Authenticate to update your token!{Style.RESET_ALL}"
+            logger.warning(
+                f"{Fore.LIGHTYELLOW_EX}Bot has no access_token. Authenticate to update your token!{Style.RESET_ALL}"
             )
             logger.info(
-                f"{Fore.CYAN}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.CYAN}.\n{Style.RESET_ALL}"
+                f"{Fore.CYAN}Launching auth site: {Fore.MAGENTA}{authorization_url}{Fore.CYAN}.{Style.RESET_ALL}"
             )
-
-            # TODO: Keep bot here / crash out until bot user has a new access token
-            raise ValueError(
-                "Bot has no access_token. Authenticate to update your token!"
-            )
+            logger.info(f"{Fore.CYAN}Stopping BOT process.{Style.RESET_ALL}")
+            loop.stop()
+            loop.close()
 
         else:
             # the bot user has a twitch access token stored in db so check its actually valid else refresh it
-            is_valid = loop.run_until_complete(
+            is_valid, access_token = loop.run_until_complete(
                 Utils().check_valid_token(user=_bot_user)
             )
             if is_valid:
-                config.BOT_OAUTH_TOKEN = _bot_user.get("access_token")
+                config.BOT_OAUTH_TOKEN = access_token
 
     except AttributeError:
         # database doesn't have an item for the bot_user_id provided
@@ -158,7 +155,7 @@ async def setup_bot() -> CustomBot:
         # Send URL to stdout allows the user to grant the oauth flow and store an access token in the db
         logger.error(
             f"{Fore.CYAN}Failed to get bot user object for "
-            f"{Fore.MAGENTA}{config.get_bot_config().get('twitch').get('bot_user_id')}{Fore.CYAN}!"
+            f"{Fore.MAGENTA}{config.get_bot_config().get('twitch').get('bot_auth').get('bot_user_id')}{Fore.CYAN}!"
             f"{Style.RESET_ALL}"
         )
         logger.info(
@@ -173,17 +170,21 @@ async def setup_bot() -> CustomBot:
     custom_bot.loop.run_until_complete(custom_bot.__ainit__())
 
     # Start the pubsub client for the Twitch channel
-    if config.get_bot_config().get("bot_features").get("enable_psclient"):
+    if (
+        config.get_bot_config().get("bot_features").get("enable_psclient")
+    ):  # pragma: no cover
         custom_bot.loop.run_until_complete(custom_bot.__psclient_init__())
 
     # Start the eventsub client for the Twitch channel
-    if config.get_bot_config().get("bot_features").get("enable_esclient"):
+    if (
+        config.get_bot_config().get("bot_features").get("enable_esclient")
+    ):  # pragma: no cover
         custom_bot.loop.run_until_complete(custom_bot.__esclient_init__())
 
     return custom_bot
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     try:
         bot = asyncio.run(setup_bot())
         bot.run()

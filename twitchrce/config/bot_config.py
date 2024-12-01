@@ -22,6 +22,9 @@ class BotConfig:
         self.API_GATEWAY_ROUTE = config(
             "API_GATEWAY_ROUTE", default="/twitch/oauth2/authorization_code"
         )
+        self.DYNAMODB_USER_TABLE_NAME = config(
+            "DYNAMODB_USER_TABLE_NAME", default="MSecBot_User"
+        )
 
         # Additional Twitch Bot Variables
         self.BOT_INITIAL_CHANNELS = [{"id": 125444292, "login": "msec"}]
@@ -73,7 +76,7 @@ class BotConfig:
                     },
                 },
                 "virus_total": {
-                    "enable_virus_total": False,
+                    "enable_virus_total": True,
                     "virus_total_api_key": self.VIRUS_TOTAL_API_KEY,
                 },
             },
@@ -85,5 +88,6 @@ class BotConfig:
                     "api_gateway_invoke_url": self.API_GATEWAY_INVOKE_URL,
                     "api_gateway_route": self.API_GATEWAY_ROUTE,
                 },
+                "dynamodb_user_table_name": self.DYNAMODB_USER_TABLE_NAME,
             },
         }

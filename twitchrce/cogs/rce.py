@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from twitchrce.custom_bot import CustomBot
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -39,7 +39,7 @@ class RCECog(commands.Cog):
     async def exec(self, ctx: commands.Context):
         # get channel broadcaster
         broadcaster: User = (
-            await self.bot.fetch_users(ids=[], logins=[ctx.channel.name])
+            await self.bot.fetch_users(ids=[], names=[ctx.channel.name])
         )[0]
 
         if ctx.message.content == "!exec --help":
