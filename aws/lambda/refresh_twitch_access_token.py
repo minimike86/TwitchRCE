@@ -1,9 +1,19 @@
 import json
+import logging
+import os
+from typing import Tuple
 
 import boto3
-import urllib3
+import requests
 from botocore.exceptions import ClientError
 from urllib3 import encode_multipart_formdata
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 def get_parameter(parameter_name):
@@ -19,22 +29,22 @@ def get_secret(parameter):
         raise
 
 
-def refresh_token(_refresh_token):
+def refresh_token(_refresh_token: str) -> Tuple[bool, any]:
     # Retrieve client id from AWS Parameter Store
     # Retrieve client secret from AWS Parameter Store
+    # TODO: Don't hardcode secret name arn needs to fetch from env_var
+    client_id_param_arn = (
+        "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/client_id"
+    )
+    client_secret_param_arn = (
+        "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/client_secret"
+    )
     try:
-        client_id = get_secret(
-            "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/client_id"
-        )  # TODO: Don't hardcode secret name arn
-        client_secret = get_secret(
-            "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/client_secret"
-        )  # TODO: Don't hardcode secret name arn
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": f"Error retrieving secret: {str(e)}"}),
-        }
-    http = urllib3.PoolManager()
+        client_id = get_secret(client_id_param_arn)
+        client_secret = get_secret(client_secret_param_arn)
+    except Exception as exception:
+        raise exception
+
     try:
         url = "https://id.twitch.tv/oauth2/token"
         data = {
@@ -45,28 +55,41 @@ def refresh_token(_refresh_token):
         }
         encoded_data = encode_multipart_formdata(data)[1]
         headers = {"Content-Type": "application/x-www-form-urlencoded}"}
-        response = http.request("POST", url, body=encoded_data, headers=headers)
+        response = requests.post(url, data=encoded_data, headers=headers)
 
         # Check if request was successful
-        if response.status == 200:
-            return True, json.loads(response.data.decode("utf-8"))
+        if response.status_code == 200:
+            return True, json.loads(response.json())
         else:
-            return False, None
-    finally:
-        http.clear()
+            return False, json.loads(response.json())
+
+    except Exception as exception:
+        raise exception
 
 
 def store_in_dynamodb(_refresh_token, refresh_response):
+    """
+    Stores or updates the refresh and access tokens in DynamoDB.
+
+    Parameters:
+    - _refresh_token: The current refresh token held by the system.
+    - refresh_response: The result of a web request for a new token, containing the access token,
+      refresh token, scope, and token type.
+
+    Returns:
+    - A dictionary with the HTTP status code and a message about the operation.
+    """
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table("MSecBot_User")  # TODO: Don't hardcode dynamodb.Table name
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
+    table = dynamodb.Table(table_name)
 
     try:
         # Check if the item exists
-        response = table.get_item(Key={"refresh_token": _refresh_token})
-        if "Item" in response:
+        get_item_outcome = table.get_item(Key={"refresh_token": _refresh_token})
+        if "Item" in get_item_outcome:
             # Item exists, update it
             table.update_item(
-                Key={"refresh_token": _refresh_token},
+                Key={"id": int(get_item_outcome["Item"]["id"])},
                 UpdateExpression="set access_token=:a, refresh_token=:r, scope=:s, token_type=:t",
                 ExpressionAttributeValues={
                     ":a": refresh_response.get("access_token"),
@@ -103,10 +126,11 @@ def store_in_dynamodb(_refresh_token, refresh_response):
                 }
             )
             return {"statusCode": 200, "body": json.dumps("Token stored successfully!")}
-    except ClientError as e:
+    except ClientError as client_error:
+        logger.error(f"[client_error]: {client_error.response['Error']['Message']}")
         return {
             "statusCode": 500,
-            "body": json.dumps(f'Error: {e.response["Error"]["Message"]}'),
+            "body": json.dumps(f'Error: {client_error.response["Error"]["Message"]}'),
         }
 
 
@@ -122,7 +146,15 @@ def lambda_handler(event, _context):
         }
 
     # Validate access token
-    is_refreshed, refresh_response = _refresh_token(refresh_token)
+    try:
+        is_refreshed, refresh_response = refresh_token(_refresh_token)
+    except Exception as exception:
+        return {
+            "statusCode": 500,
+            "body": json.dumps(
+                {"message": f"Error retrieving secret: {str(exception)}"}
+            ),
+        }
 
     if is_refreshed:
         # Update user refresh token in DynamoDB

@@ -1,8 +1,10 @@
 import json
+import os
 
 import boto3
-import urllib3
+import requests
 from botocore.exceptions import ClientError
+from moto.ssm.exceptions import ParameterNotFound
 
 
 def get_parameter(parameter_name):
@@ -12,24 +14,24 @@ def get_parameter(parameter_name):
 
 
 def validate_token(access_token):
-    http = urllib3.PoolManager()
     try:
         url = "https://id.twitch.tv/oauth2/validate"
         headers = {"Authorization": f"OAuth {access_token}"}
-        response = http.request("GET", url, headers=headers)
+        response = requests.get(url=url, headers=headers)
 
         # Check if request was successful
-        if response.status == 200:
-            return True, json.loads(response.data.decode("utf-8"))
+        if response.status_code == 200:
+            return True, response.json()
         else:
-            return False, None
-    finally:
-        http.clear()
+            return False, response.json()
+    except Exception as exc_info:
+        return False, {"status": 500, "message": str(exc_info)}
 
 
 def store_in_dynamodb(token_response, validation_response):
     dynamodb = boto3.resource("dynamodb")
-    table = dynamodb.Table("MSecBot_User")  # TODO: Don't hardcode dynamodb.Table name
+    table_name = os.getenv("DYNAMODB_USER_TABLE_NAME")
+    table = dynamodb.Table(table_name)
 
     try:
         # Check if the item exists
@@ -66,10 +68,16 @@ def store_in_dynamodb(token_response, validation_response):
                     "scopes": validation_response.get("scopes"),
                 }
             )
-    except ClientError as e:
+
+    except TypeError as type_error:
         return {
             "statusCode": 500,
-            "body": json.dumps(f'Error: {e.response["Error"]["Message"]}'),
+            "body": json.dumps(f"Error: {type_error}"),
+        }
+    except ClientError as client_error:
+        return {
+            "statusCode": 500,
+            "body": json.dumps(f'Error: {client_error.response["Error"]["Message"]}'),
         }
 
 
@@ -100,10 +108,19 @@ def lambda_handler(event, _context):
         client_secret = get_secret(
             "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/client_secret"
         )  # TODO: Don't hardcode secret name arn
-    except Exception as e:
+    except ParameterNotFound as parameter_not_found:
         return {
             "statusCode": 500,
-            "body": json.dumps({"message": f"Error retrieving secret: {str(e)}"}),
+            "body": json.dumps(
+                {"message": f"Error retrieving secret: {str(parameter_not_found)}"}
+            ),
+        }
+    except Exception as exception:
+        return {
+            "statusCode": 500,
+            "body": json.dumps(
+                {"message": f"Error retrieving secret: {str(exception)}"}
+            ),
         }
 
     # Retrieve redirect_uri from AWS Parameter Store
@@ -111,10 +128,12 @@ def lambda_handler(event, _context):
         redirect_uri = get_parameter(
             "arn:aws:ssm:eu-west-2:339713094915:parameter/twitch/oath2/redirect_url"
         )  # TODO: Don't hardcode twitch/oath2/redirect_url arn
-    except Exception as e:
+    except Exception as exception:
         return {
             "statusCode": 500,
-            "body": json.dumps({"message": f"Error retrieving redirect uri: {str(e)}"}),
+            "body": json.dumps(
+                {"message": f"Error retrieving redirect uri: {str(exception)}"}
+            ),
         }
 
     # Define parameters for POST request
@@ -128,16 +147,15 @@ def lambda_handler(event, _context):
     encoded_params = json.dumps(params).encode("utf-8")
 
     # Make POST request to Twitch API
-    http = urllib3.PoolManager()
     try:
         url = "https://id.twitch.tv/oauth2/token"
         headers = {"Content-Type": "application/json"}
-        response = http.request("POST", url, body=encoded_params, headers=headers)
+        response = requests.post(url=url, json=encoded_params, headers=headers)
 
         # Check if request was successful
-        if response.status == 200:
-            # Parse the JSON response
-            token_response = json.loads(response.data.decode("utf-8"))
+        if response.status_code == 200:
+            # Parse the JSON response=
+            token_response = json.loads(response.json().decode("utf-8"))
 
             # Check received token is valid and grab extra metadata
             is_valid, validation_response = validate_token(
@@ -148,7 +166,7 @@ def lambda_handler(event, _context):
                 # Store validation response in DynamoDB
                 store_in_dynamodb(token_response, validation_response)
 
-                return {"statusCode": 200, "body": response.data.decode("utf-8")}
+                return {"statusCode": 200, "body": json.dumps(token_response)}
 
             else:
                 return {
@@ -158,9 +176,9 @@ def lambda_handler(event, _context):
 
         else:
             return {
-                "statusCode": response.status,
+                "statusCode": response.status_code,
                 "body": json.dumps({"message": "Failed to retrieve access token"}),
             }
 
-    finally:
-        http.clear()
+    except Exception as exception:
+        return {"statusCode": 500, "body": json.dumps({"error": str(exception)})}
