@@ -6,11 +6,12 @@ import pytest
 import responses
 from botocore.exceptions import ClientError
 from moto import mock_aws
-from refresh_twitch_access_token import get_parameter, get_secret
-from refresh_twitch_access_token import (
+
+from aws.lambdas.refresh_twitch_access_token import get_parameter, get_secret
+from aws.lambdas.refresh_twitch_access_token import (
     lambda_handler as refresh_twitch_access_token_handler,
 )
-from refresh_twitch_access_token import refresh_token, store_in_dynamodb
+from aws.lambdas.refresh_twitch_access_token import refresh_token, store_in_dynamodb
 
 
 @pytest.fixture
@@ -135,7 +136,9 @@ def test_get_parameter_not_found():
 
 @pytest.fixture
 def mock_get_parameter(mocker):
-    return mocker.patch("refresh_twitch_access_token.get_parameter", autospec=True)
+    return mocker.patch(
+        "aws.lambdas.refresh_twitch_access_token.get_parameter", autospec=True
+    )
 
 
 def test_get_secret_success(mock_get_parameter):
@@ -177,7 +180,7 @@ def test_refresh_token_success_path(mocker):
 
     https://dev.twitch.tv/docs/authentication/refresh-tokens/
     """
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
     expected_response = json.dumps(
@@ -209,7 +212,7 @@ def test_refresh_token_success_path(mocker):
 
 
 def test_refresh_token_get_secret_raises_exception(mocker):
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = Exception("some exception")
 
     with pytest.raises(Exception):
@@ -217,7 +220,7 @@ def test_refresh_token_get_secret_raises_exception(mocker):
 
 
 def test_refresh_token_requests_post_raises_exception(mocker):
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
     mock_requests_post = mocker.patch("requests.post")
@@ -240,7 +243,7 @@ def test_refresh_token_invalid_token(mocker):
 
     https://dev.twitch.tv/docs/authentication/refresh-tokens/
     """
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
     expected_response = json.dumps(
@@ -268,7 +271,7 @@ def test_refresh_token_invalid_token(mocker):
 @responses.activate
 @mock_aws
 def test_refresh_twitch_access_token_handler_success(mocker, set_environment_variables):
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
     expected_token_refresh_response = json.dumps(
@@ -313,7 +316,9 @@ def test_refresh_twitch_access_token_handler_missing_refresh_token():
 
 
 def test_refresh_twitch_access_token_handler_refresh_token_raises_exception(mocker):
-    mock_refresh_token = mocker.patch("refresh_twitch_access_token.refresh_token")
+    mock_refresh_token = mocker.patch(
+        "aws.lambdas.refresh_twitch_access_token.refresh_token"
+    )
     mock_refresh_token.side_effect = Exception("some exception")
 
     event_in = {"queryStringParameters": {"refresh_token": "refresh_token"}}
@@ -329,7 +334,9 @@ def test_refresh_twitch_access_token_handler_refresh_token_raises_exception(mock
 def test_refresh_twitch_access_token_handler_refresh_token_fails_to_refresh_token(
     mocker,
 ):
-    mock_refresh_token = mocker.patch("refresh_twitch_access_token.refresh_token")
+    mock_refresh_token = mocker.patch(
+        "aws.lambdas.refresh_twitch_access_token.refresh_token"
+    )
     mock_refresh_token.return_value = False, json.dumps(
         {
             "error": "Bad Request",
@@ -350,7 +357,7 @@ def test_refresh_twitch_access_token_handler_refresh_token_fails_to_refresh_toke
 def test_refresh_twitch_access_token_handler_store_in_dynamodb_put_and_update(
     mocker, set_environment_variables, db_item
 ):
-    mock_get_secret = mocker.patch("refresh_twitch_access_token.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.refresh_twitch_access_token.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
     expected_token_refresh_response = json.dumps(

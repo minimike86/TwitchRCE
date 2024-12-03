@@ -7,11 +7,12 @@ import responses
 from botocore.exceptions import ClientError
 from moto import mock_aws
 from moto.ssm.exceptions import ParameterNotFound
-from store_oauth_authorize_code import get_parameter, get_secret
-from store_oauth_authorize_code import (
+
+from aws.lambdas.store_oauth_authorize_code import get_parameter, get_secret
+from aws.lambdas.store_oauth_authorize_code import (
     lambda_handler as store_oauth_authorize_code_handler,
 )
-from store_oauth_authorize_code import store_in_dynamodb, validate_token
+from aws.lambdas.store_oauth_authorize_code import store_in_dynamodb, validate_token
 
 
 @pytest.fixture
@@ -343,7 +344,9 @@ def test_store_in_dynamodb_client_error(mocker, set_environment_variables):
 
 @pytest.fixture
 def mock_get_parameter(mocker):
-    return mocker.patch("store_oauth_authorize_code.get_parameter", autospec=True)
+    return mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter", autospec=True
+    )
 
 
 def test_get_secret_success(mock_get_parameter):
@@ -378,10 +381,12 @@ def test_get_secret_failure(mock_get_parameter):
 
 @mock_aws
 def test_lambda_handler_success(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
-    mock_get_parameter = mocker.patch("store_oauth_authorize_code.get_parameter")
+    mock_get_parameter = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter"
+    )
     mock_get_parameter.return_value = "redirect_uri"
 
     mock_token_response = mocker.Mock()
@@ -396,7 +401,9 @@ def test_lambda_handler_success(mocker):
         "token_type": "bearer",
     }
 
-    mock_validate_token = mocker.patch("store_oauth_authorize_code.validate_token")
+    mock_validate_token = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.validate_token"
+    )
     mock_validate_token.return_value = True, json.dumps(
         {
             "client_id": "wbmytr93xzw8zbg0p1izqyzzc5mbiz",
@@ -408,7 +415,7 @@ def test_lambda_handler_success(mocker):
     )
 
     mock_store_in_dynamodb = mocker.patch(
-        "store_oauth_authorize_code.store_in_dynamodb"
+        "aws.lambdas.store_oauth_authorize_code.store_in_dynamodb"
     )
     mock_store_in_dynamodb.return_value = None
 
@@ -533,7 +540,7 @@ def test_lambda_handler_code_is_none():
 
 
 def test_lambda_handler_get_secret_parameter_not_found(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ParameterNotFound(message="message")
 
     event_in = {"queryStringParameters": {"code": "code"}}
@@ -546,7 +553,7 @@ def test_lambda_handler_get_secret_parameter_not_found(mocker):
 
 
 def test_lambda_handler_get_secret_exception(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = Exception
 
     event_in = {"queryStringParameters": {"code": "code"}}
@@ -558,10 +565,12 @@ def test_lambda_handler_get_secret_exception(mocker):
 
 
 def test_lambda_handler_get_parameter_exception(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
-    mock_get_parameter = mocker.patch("store_oauth_authorize_code.get_parameter")
+    mock_get_parameter = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter"
+    )
     mock_get_parameter.side_effect = Exception
 
     event_in = {"queryStringParameters": {"code": "code"}}
@@ -573,10 +582,12 @@ def test_lambda_handler_get_parameter_exception(mocker):
 
 
 def test_lambda_handler_invalid_token_response(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
-    mock_get_parameter = mocker.patch("store_oauth_authorize_code.get_parameter")
+    mock_get_parameter = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter"
+    )
     mock_get_parameter.return_value = "redirect_uri"
 
     mock_token_response = mocker.Mock()
@@ -593,7 +604,9 @@ def test_lambda_handler_invalid_token_response(mocker):
     mock_response = mocker.patch("requests.post")
     mock_response.return_value = mock_token_response
 
-    mock_validate_token = mocker.patch("store_oauth_authorize_code.validate_token")
+    mock_validate_token = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.validate_token"
+    )
     mock_validate_token.return_value = False, json.dumps(
         {"status": 401, "message": "invalid access token"}
     )
@@ -606,10 +619,12 @@ def test_lambda_handler_invalid_token_response(mocker):
 
 
 def test_lambda_handler_failed_token_response(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
-    mock_get_parameter = mocker.patch("store_oauth_authorize_code.get_parameter")
+    mock_get_parameter = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter"
+    )
     mock_get_parameter.return_value = "redirect_uri"
 
     mock_token_response = mocker.Mock()
@@ -629,10 +644,12 @@ def test_lambda_handler_failed_token_response(mocker):
 
 
 def test_lambda_handler_http_error_response(mocker):
-    mock_get_secret = mocker.patch("store_oauth_authorize_code.get_secret")
+    mock_get_secret = mocker.patch("aws.lambdas.store_oauth_authorize_code.get_secret")
     mock_get_secret.side_effect = ["client_id", "client_secret"]
 
-    mock_get_parameter = mocker.patch("store_oauth_authorize_code.get_parameter")
+    mock_get_parameter = mocker.patch(
+        "aws.lambdas.store_oauth_authorize_code.get_parameter"
+    )
     mock_get_parameter.return_value = "redirect_uri"
 
     mocker.patch("requests.post", side_effect=Exception("Mocked exception"))

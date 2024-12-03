@@ -26,12 +26,12 @@ from twitchio.ext.eventsub import (
     StreamOfflineData,
     StreamOnlineData,
 )
-from utils.utils import Utils
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
 from twitchrce.config.bot_config import BotConfig
 from twitchrce.esclient import CustomEventSubClient
 from twitchrce.psclient import CustomPubSubClient
+from twitchrce.utils.utils import Utils
 
 logging.basicConfig(
     level=logging.INFO,
