@@ -213,9 +213,7 @@ class CustomBot(commands.Bot):
             chatter_who_cheered = channel_cheer_happened_in.get_chatter(
                 name=cheer_data.user.name
             )
-            user_clips: List[Clip] = await cheer_data.user.fetch_clips(
-                is_featured=True
-            )
+            user_clips: List[Clip] = await cheer_data.user.fetch_clips(is_featured=True)
 
             if hasattr(cheer_data, "is_anonymous") and cheer_data.is_anonymous:
                 event_string = (
@@ -402,9 +400,7 @@ class CustomBot(commands.Bot):
             # shoutout the raider
             if len(user_clips) >= 1:
                 # check if raider is a streamer with clips on their channel and shoutout with clip player
-                await channel_raid_happened_in.send(
-                    f"!so {chatter_who_raided.mention}"
-                )
+                await channel_raid_happened_in.send(f"!so {chatter_who_raided.mention}")
             await self.announce_shoutout(
                 broadcaster=channel_raid_data.reciever,
                 user_to_shoutout=channel_raid_data.raider,
