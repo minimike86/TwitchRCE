@@ -2,12 +2,13 @@ import logging
 from typing import TYPE_CHECKING, List
 
 import twitchio
-from cogs.rce import RCECog as RCE_Cog
-from cogs.vip import VIPCog as VIP_Cog
 from colorama import Fore, Style
 from twitchio import Chatter, Client, PartialChatter, User
 from twitchio.ext import pubsub
 from twitchio.ext.commands import Cog
+
+from twitchrce.cogs.rce import RCECog as RCE_Cog
+from twitchrce.cogs.vip import VIPCog as VIP_Cog
 
 if TYPE_CHECKING:
     from twitchrce.custom_bot import CustomBot
