@@ -6,13 +6,11 @@ import pytest
 import responses
 from botocore.exceptions import ClientError
 from moto import mock_aws
-
+from refresh_twitch_access_token import get_parameter, get_secret
 from refresh_twitch_access_token import (
-    get_parameter,
-    get_secret,
-    refresh_token,
-    lambda_handler as refresh_twitch_access_token_handler, store_in_dynamodb,
+    lambda_handler as refresh_twitch_access_token_handler,
 )
+from refresh_twitch_access_token import refresh_token, store_in_dynamodb
 
 
 @pytest.fixture
@@ -376,12 +374,12 @@ def test_refresh_twitch_access_token_handler_store_in_dynamodb_put_and_update(
     mock_table = dynamodb.create_table(
         TableName=table_name,
         KeySchema=[
-                {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
-                {"AttributeName": "refresh_token", "KeyType": "HASH"},  # Sort key
+            {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
+            {"AttributeName": "refresh_token", "KeyType": "HASH"},  # Sort key
         ],
         AttributeDefinitions=[
-                {"AttributeName": "id", "AttributeType": "N"},
-                {"AttributeName": "refresh_token", "AttributeType": "S"},
+            {"AttributeName": "id", "AttributeType": "N"},
+            {"AttributeName": "refresh_token", "AttributeType": "S"},
         ],
         ProvisionedThroughput={"ReadCapacityUnits": 5, "WriteCapacityUnits": 5},
     )
@@ -409,4 +407,7 @@ def test_refresh_twitch_access_token_handler_store_in_dynamodb_put_and_update(
 
     # Assertions for new token insert
     assert result_insert["statusCode"] == 500
-    assert json.loads(result_insert["body"]) == "Error: The provided key element does not match the schema"
+    assert (
+        json.loads(result_insert["body"])
+        == "Error: The provided key element does not match the schema"
+    )

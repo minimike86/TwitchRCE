@@ -7,8 +7,16 @@ from typing import List, Optional, Union
 import boto3
 import twitchio
 from botocore.exceptions import ClientError
-from colorama import Fore, Style, Back
-from twitchio import HTTPException, PartialUser, Unauthorized, User
+from colorama import Back, Fore, Style
+from twitchio import (
+    Channel,
+    ChannelInfo,
+    Clip,
+    HTTPException,
+    PartialUser,
+    Unauthorized,
+    User,
+)
 from twitchio.ext import commands, eventsub
 from twitchio.ext.eventsub import (
     ChannelCharityDonationData,
@@ -18,12 +26,12 @@ from twitchio.ext.eventsub import (
     StreamOfflineData,
     StreamOnlineData,
 )
+from utils.utils import Utils
 
 from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
 from twitchrce.config.bot_config import BotConfig
 from twitchrce.esclient import CustomEventSubClient
 from twitchrce.psclient import CustomPubSubClient
-from utils.utils import Utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -192,21 +200,37 @@ class CustomBot(commands.Bot):
         async def event_eventsub_notification_cheer(
             payload: eventsub.NotificationEvent,
         ) -> None:
-            """event triggered when someone cheers in the channel"""
-            if hasattr(payload.data, "is_anonymous") and payload.data.is_anonymous:
+            """
+            Event triggered when someone cheers in the channel.
+            https://twitchio.dev/en/latest/exts/eventsub.html#twitchio.ext.eventsub.ChannelCheerData
+            """
+            cheer_data: eventsub.ChannelCheerData = payload.data
+
+            # Get cheerer info
+            channel_cheer_happened_in: Optional[Channel] = (
+                cheer_data.broadcaster.channel
+            )
+            chatter_who_cheered = channel_cheer_happened_in.get_chatter(
+                name=cheer_data.user.name
+            )
+            user_clips: List[Clip] = await cheer_data.user.fetch_clips(
+                is_featured=True
+            )
+
+            if hasattr(cheer_data, "is_anonymous") and cheer_data.is_anonymous:
                 event_string = (
                     f"Received cheer event from anonymous, "
-                    f"cheered {payload.data.bits} bits, "
-                    f"message '{payload.data.message}'."
+                    f"cheered {cheer_data.bits} bits, "
+                    f"message '{cheer_data.message}'."
                 )
             else:
                 event_string = (
-                    f"Received cheer event from {payload.data.user.name} [{payload.data.user.id}], "
-                    f"cheered {payload.data.bits} bits, "
-                    f"message '{payload.data.message}'."
+                    f"Received cheer event from {cheer_data.user.name} [{cheer_data.user.id}], "
+                    f"cheered {cheer_data.bits} bits, "
+                    f"message '{cheer_data.message}'."
                 )
             logger.info(
-                f"{Fore.RED}[{payload.data.broadcaster.name}]{Fore.BLUE}[Cheer]{Fore.RED}[EventSub]: "
+                f"{Fore.RED}[{cheer_data.broadcaster.name}]{Fore.BLUE}[Cheer]{Fore.RED}[EventSub]: "
                 f"{event_string}{Style.RESET_ALL}"
             )
 
@@ -214,39 +238,28 @@ class CustomBot(commands.Bot):
             await self.set_stream_marker(payload=payload, event_string=event_string)
 
             # react to event
-            if hasattr(payload.data, "is_anonymous") and not payload.data.is_anonymous:
-                # Get cheerer info
-                _channel = await self._http.get_channels(
-                    broadcaster_id=payload.data.user.id
-                )
-                clips = await self._http.get_clips(broadcaster_id=payload.data.user.id)
+            if hasattr(cheer_data, "is_anonymous") and not cheer_data.is_anonymous:
+
                 # Acknowledge raid and reply with a channel bio
-                await self.get_channel(
-                    self.config.get_bot_config()
-                    .get("twitch")
-                    .get("channel")
-                    .get("bot_join_channel")
-                ).send(
-                    f"Thank you @{_channel[0]['broadcaster_login']} for cheering {payload.data.bits} bits!"
+                await channel_cheer_happened_in.send(
+                    f"Thank you {chatter_who_cheered.mention} for cheering {cheer_data.bits} bits!"
                 )
                 # shoutout the subscriber
-                if len(clips) >= 1:
+                if len(user_clips) >= 1:
                     """check if sub is a streamer with clips on their channel and shoutout with clip player"""
-                    await self.get_channel(payload.data.broadcaster.name).send(
-                        f"!so {_channel[0]['broadcaster_login']}"
+                    await channel_cheer_happened_in.send(
+                        f"!so {chatter_who_cheered.mention}"
                     )
                     await self.announce_shoutout(
-                        ctx=None,
-                        broadcaster=payload.data.broadcaster,
-                        channel=_channel[0],
+                        broadcaster=cheer_data.broadcaster,
+                        user_to_shoutout=cheer_data.user,
                         color="green",
                     )
                 else:
                     """shoutout without clip player"""
                     await self.announce_shoutout(
-                        ctx=None,
-                        broadcaster=payload.data.broadcaster,
-                        channel=_channel[0],
+                        broadcaster=cheer_data.broadcaster,
+                        user_to_shoutout=cheer_data.user,
                         color="green",
                     )
 
@@ -254,124 +267,121 @@ class CustomBot(commands.Bot):
         async def event_eventsub_notification_subscription(
             payload: eventsub.NotificationEvent,
         ) -> None:
-            data: ChannelSubscribeData | ChannelSubscriptionGiftData = payload.data
+            """
+            Event triggered when someone subscribes in the channel.
+            https://twitchio.dev/en/latest/exts/eventsub.html#twitchio.ext.eventsub.ChannelSubscribeData
+            https://twitchio.dev/en/latest/exts/eventsub.html#twitchio.ext.eventsub.ChannelSubscriptionGiftData
+            """
+            channel_subscribe_data: (
+                ChannelSubscribeData | ChannelSubscriptionGiftData
+            ) = payload.data
+
+            # Get subscriber info
+            channel_subscription_happened_in: Optional[Channel] = (
+                channel_subscribe_data.broadcaster.channel
+            )
+            chatter_who_subscribed = channel_subscription_happened_in.get_chatter(
+                name=channel_subscribe_data.user.name
+            )
+            user_clips: List[Clip] = await channel_subscribe_data.user.fetch_clips(
+                is_featured=True
+            )
 
             # Check if sub is gifted
-            if not data.is_gift:
+            if not channel_subscribe_data.is_gift:
                 """event triggered when someone subscribes the channel"""
-                if hasattr(data, "is_anonymous") and data.is_anonymous:
+                if (
+                    hasattr(channel_subscribe_data, "is_anonymous")
+                    and channel_subscribe_data.is_anonymous
+                ):
                     event_string = (
                         f"Received subscription event from anonymous, "
-                        f"with tier {data.tier / 1000} sub."
+                        f"with tier {channel_subscribe_data.tier / 1000} sub."
                     )
                 else:
                     event_string = (
-                        f"Received subscription event from {data.user.name} [{data.user.id}], "
-                        f"with tier {data.tier / 1000} sub."
+                        f"Received subscription event from {channel_subscribe_data.user.name} [{channel_subscribe_data.user.id}], "
+                        f"with tier {channel_subscribe_data.tier / 1000} sub."
                     )
                 logger.info(
-                    f"{Fore.RED}[{data.broadcaster.name}]{Fore.BLUE}[Sub]{Fore.RED}[EventSub]: "
+                    f"{Fore.RED}[{channel_subscribe_data.broadcaster.name}]{Fore.BLUE}[Sub]{Fore.RED}[EventSub]: "
                     f"{event_string}{Style.RESET_ALL}"
                 )
 
                 # create stream marker (Stream markers cannot be created when the channel is offline)
                 await self.set_stream_marker(payload=payload, event_string=event_string)
 
-                # Get subscriber info
-                _channel = await self._http.get_channels(broadcaster_id=data.user.id)
                 # Acknowledge raid and reply with a channel bio
-                if len(_channel) >= 1:
-                    try:
-                        await self.get_channel(
-                            self.config.get_bot_config()
-                            .get("twitch")
-                            .get("channel")
-                            .get("bot_join_channel")
-                        ).send(
-                            f"Thank you @{_channel[0]['broadcaster_login']} for the tier {data.tier / 1000} "
-                            f"subscription!"
-                        )
-                    except (
-                        AttributeError
-                    ):  # AttributeError: 'NoneType' object has no attribute 'send'
-                        pass
+                await channel_subscription_happened_in.send(
+                    f"Thank you {chatter_who_subscribed.mention} for the tier {channel_subscribe_data.tier / 1000} "
+                    f"subscription!"
+                )
+
                 # shoutout the subscriber
-                clips = await self._http.get_clips(broadcaster_id=data.user.id)
-                if len(clips) >= 1:
-                    """check if sub is a streamer with clips on their channel and shoutout with clip player"""
-                    await self.get_channel(
-                        self.config.get_bot_config()
-                        .get("twitch")
-                        .get("channel")
-                        .get("bot_join_channel")
-                    ).send(f"!so {_channel[0]['broadcaster_login']}")
-                    await self.announce_shoutout(
-                        ctx=None,
-                        broadcaster=data.broadcaster,
-                        channel=_channel[0],
-                        color="green",
+                if len(user_clips) >= 1:
+                    # check if sub is a streamer with clips on their channel and shoutout with clip player
+                    await channel_subscription_happened_in.send(
+                        f"!so {chatter_who_subscribed.mention}"
                     )
-                else:
-                    """shoutout without clip player"""
-                    await self.announce_shoutout(
-                        ctx=None,
-                        broadcaster=data.broadcaster,
-                        channel=_channel[0],
-                        color="green",
-                    )
+                await self.announce_shoutout(
+                    broadcaster=channel_subscribe_data.broadcaster,
+                    user_to_shoutout=channel_subscribe_data.user,
+                    color="green",
+                )
 
             else:
                 """event triggered when someone gifts a sub to someone in the channel"""
-                if hasattr(data, "is_anonymous") and data.is_anonymous:
+                if (
+                    hasattr(channel_subscribe_data, "is_anonymous")
+                    and channel_subscribe_data.is_anonymous
+                ):
                     event_string = (
                         f"Received gift subscription event from anonymous, "
-                        f"with tier {int(data.tier / 1000)} sub. [GIFTED]"
+                        f"with tier {int(channel_subscribe_data.tier / 1000)} sub. [GIFTED]"
                     )
                 else:
                     event_string = (
-                        f"Received gift subscription event from {data.user.name} "
-                        f"[{data.user.id}], with tier {int(data.tier / 1000)} sub. [GIFTED]"
+                        f"Received gift subscription event from {channel_subscribe_data.user.name} "
+                        f"[{channel_subscribe_data.user.id}], with tier {int(channel_subscribe_data.tier / 1000)} sub. [GIFTED]"
                     )
                 logger.info(
-                    f"{Fore.RED}[{data.broadcaster.name}]{Fore.BLUE}[GiftSub]{Fore.RED}[EventSub]: "
+                    f"{Fore.RED}[{channel_subscribe_data.broadcaster.name}]{Fore.BLUE}[GiftSub]{Fore.RED}[EventSub]: "
                     f"{event_string}{Style.RESET_ALL}"
                 )
 
                 # create stream marker (Stream markers cannot be created when the channel is offline)
                 await self.set_stream_marker(payload=payload, event_string=event_string)
 
-                # Get subscriber info
-                _channel = await self._http.get_channels(broadcaster_id=data.user.id)
-                # Acknowledge raid and reply with a channel bio
-                if len(_channel) >= 1:
-                    try:
-                        await self.get_channel(
-                            self.config.get_bot_config()
-                            .get("twitch")
-                            .get("channel")
-                            .get("bot_join_channel")
-                        ).send(
-                            f"Congratulations @{_channel[0]['broadcaster_login']} on receiving a "
-                            f"gifted tier {int(data.tier / 1000)} subscription!"
-                        )
-                    except (
-                        AttributeError
-                    ):  # AttributeError: 'NoneType' object has no attribute 'send'
-                        pass
+                # Get subscriber info and acknowledge raid with reply containing channel bio
+                await channel_subscription_happened_in.send(
+                    f"Congratulations {chatter_who_subscribed.mention} on receiving a "
+                    f"gifted tier {int(channel_subscribe_data.tier / 1000)} subscription!"
+                )
 
         @self.event()
         async def event_eventsub_notification_raid(
             payload: eventsub.NotificationEvent,
         ) -> None:
             """event triggered when someone raids the channel"""
-            data: ChannelRaidData = payload.data
+            channel_raid_data: ChannelRaidData = payload.data
+
+            # Get raid info
+            channel_raid_happened_in: Optional[Channel] = (
+                channel_raid_data.reciever.channel
+            )
+            chatter_who_raided = channel_raid_happened_in.get_chatter(
+                name=channel_raid_data.raider.name
+            )
+            user_clips: List[Clip] = await channel_raid_data.raider.fetch_clips(
+                is_featured=True
+            )
 
             event_string = (
-                f"Received raid event from {data.raider.name} [{data.raider.id}], "
-                f"with {data.viewer_count} viewers"
+                f"Received raid event from {chatter_who_raided.mention} [{channel_raid_data.raider.id}], "
+                f"with {channel_raid_data.viewer_count} viewers"
             )
             logger.info(
-                f"{Fore.RED}[{data.reciever.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
+                f"{Fore.RED}[{channel_raid_data.reciever.name}]{Fore.BLUE}[Raid]{Fore.RED}[EventSub]: "
                 f"{event_string}{Style.RESET_ALL}"
             )
 
@@ -382,34 +392,24 @@ class CustomBot(commands.Bot):
 
             # create stream marker (Stream markers cannot be created when the channel is offline)
             await self.set_stream_marker(payload=payload, event_string=event_string)
-            clips = await self._http.get_clips(broadcaster_id=data.raider.id)
 
             # Acknowledge raid and reply with a channel bio
-            await data.reciever.channel.send(
+            await channel_raid_happened_in.send(
                 f"TombRaid TombRaid TombRaid WELCOME RAIDERS!!! "
-                f"Thank you @{data.raider.name} for trusting me with your community!"
+                f"Thank you {chatter_who_raided.mention} for trusting me with your community!"
             )
 
             # shoutout the raider
-            if len(clips) >= 1:
-                """check if raider is a streamer with clips on their channel and shoutout with clip player"""
-                await data.reciever.channel.send(
-                    f"!so {data.raider.name}"
-                )  # triggers clip player
-                await self.announce_shoutout(
-                    ctx=None,
-                    broadcaster=data.reciever,
-                    channel=data.raider.channel,
-                    color="orange",
+            if len(user_clips) >= 1:
+                # check if raider is a streamer with clips on their channel and shoutout with clip player
+                await channel_raid_happened_in.send(
+                    f"!so {chatter_who_raided.mention}"
                 )
-            else:
-                """shoutout without clip player"""
-                await self.announce_shoutout(
-                    ctx=None,
-                    broadcaster=data.reciever,
-                    channel=data.raider.channel,
-                    color="orange",
-                )
+            await self.announce_shoutout(
+                broadcaster=channel_raid_data.reciever,
+                user_to_shoutout=channel_raid_data.raider,
+                color="orange",
+            )
 
         @self.event()
         async def event_eventsub_notification_stream_start(
@@ -754,12 +754,11 @@ class CustomBot(commands.Bot):
 
     async def announce_shoutout(
         self,
-        ctx: Optional[commands.Context],
         broadcaster: User | PartialUser,
-        channel: any,
+        user_to_shoutout: User | PartialUser,
         color: str,
     ):
-        message: list[str] = [f"Please check out "]
+        message_builder: list[str] = [f"Please check out "]
         flattering_strings = [
             "the brilliant",
             "the amazing",
@@ -772,26 +771,31 @@ class CustomBot(commands.Bot):
             "the genius",
             "the masterful",
         ]
-        message.append(random.choice(flattering_strings))
-        message.append(
-            f" {channel['broadcaster_name']}'s channel over at "
-            f"(https://www.twitch.tv/{channel['broadcaster_login']})!"
+        message_builder.append(random.choice(flattering_strings))
+        channel_info: ChannelInfo = await self.fetch_channel(
+            broadcaster=user_to_shoutout.id
         )
-        if not channel["game_name"] == "":
-            message.append(f" They were last playing '{channel['game_name']}'.")
+        message_builder.append(
+            f" {user_to_shoutout.name}'s channel over at "
+            f"(https://www.twitch.tv/{channel_info.user.name})!"
+        )
+        if not channel_info.game_name == "":
+            message_builder.append(
+                f" They were last playing '{channel_info.game_name}', title: '{channel_info.title}'."
+            )
 
         error_count = 0
         try:
             await self.post_chat_announcement(
                 broadcaster=broadcaster,
-                message="".join(message),
+                message="".join(message_builder),
                 moderator=self.bot_user,
                 color=color,
             )
 
         except Exception as error:
             logger.error(
-                f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{channel['broadcaster_name']}"
+                f"{Fore.RED}Could not send shoutout announcement to {Fore.MAGENTA}{user_to_shoutout.name}"
                 f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}"
             )
             error_count += 1
@@ -801,28 +805,26 @@ class CustomBot(commands.Bot):
             """Perform a Twitch Shoutout command (https://help.twitch.tv/s/article/shoutouts?language=en_US).
             The channel giving a Shoutout must be live AND you cannot shoutout the current streamer.
             """
-            if channel["broadcaster_id"] != str(broadcaster.id):
+            if user_to_shoutout.id != str(broadcaster.id):
                 streams = await self._http.get_streams(user_ids=[broadcaster.id])
                 if len(streams) >= 1 and streams[0]["type"] == "live":
                     # Moderator ID must match the user ID in the user access token.
                     await self.send_shoutout(
                         broadcaster=broadcaster,
-                        to_broadcaster_id=channel["broadcaster_id"],
+                        to_broadcaster_id=user_to_shoutout.id,
                     )
 
         except Exception as error:
             """Eg: shoutout global cooldown "You have to wait 1m 30s before giving another Shoutout."""
             logger.error(
-                f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{channel['broadcaster_name']}"
+                f"{Fore.RED}Could not perform a Twitch Shoutout command to {Fore.MAGENTA}{user_to_shoutout.name}"
                 f"{Fore.RED} from channel {Fore.MAGENTA}{broadcaster.name}{Fore.RED}: {error}{Style.RESET_ALL}"
             )
             raise
 
         if error_count >= 1:
-            if ctx is not None:
-                await ctx.send("".join(message))
-            elif broadcaster is not None and hasattr(broadcaster.channel, "send"):
-                await broadcaster.channel.send("".join(message))
+            if broadcaster is not None and hasattr(broadcaster.channel, "send"):
+                await broadcaster.channel.send("".join(message_builder))
 
     async def post_chat_announcement(
         self,
@@ -930,38 +932,47 @@ class CustomBot(commands.Bot):
     @commands.command()
     async def leave(self, ctx: commands.Context):
         """type !leave <channel> to join the channel"""
+        param_username = None
         try:
             param_username = re.sub(
                 r"^@", "", str(ctx.message.content).split(maxsplit=1)[1]
-            )
-            if (
-                ctx.author.is_broadcaster or int(ctx.author.id) == 125444292
-            ) and str(  # TODO: Don't hardcode user
-                self.config.get_bot_config()
-                .get("twitch")
-                .get("channel")
-                .get("bot_join_channel")
-            ).lower() != param_username.lower():
-                # stay connected to init channel
-                await self.part_channels([param_username])
-                # also remove event subs
-                if (
-                    self.config.get_bot_config()
-                    .get("bot_features")
-                    .get("enable_esclient")
-                ):
-                    broadcasters: List[User] = await self.fetch_users(
-                        names=[param_username]
-                    )
-                    await self.es_client.delete_event_subscriptions(
-                        broadcasters=broadcasters
-                    )
-
-            logger.info(
-                f"{Fore.RED}Connected_channels: {Fore.MAGENTA}{self.connected_channels}{Fore.RED}!{Style.RESET_ALL}"
-            )
+            ).lower()
         except IndexError:
-            logger.error("!leave command failed. Regex pattern did not match.")
+            logger.error(
+                f"{Fore.LIGHTWHITE_EX}!leave command failed. Regex pattern did not match!{Style.RESET_ALL}"
+            )
+
+        initial_channels_set = {
+            user["login"].lower()
+            for user in self.config.get_bot_config()
+            .get("twitch")
+            .get("bot_initial_channels")
+        }
+
+        # AUTHORIZATION: Check that author is either the broadcaster, or msec;
+        # and that the channel is not in the list of initial channels so the bot remains connected to a channel(s).
+        if (
+            ctx.author.is_broadcaster
+            or int(ctx.author.id) == 125444292  # msec author id
+        ) and param_username not in initial_channels_set:
+            await self.part_channels([param_username])
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Bot successfully parted channel {Fore.LIGHTCYAN_EX}{param_username}"
+                f"{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
+            )
+            logger.info(
+                f"{Fore.LIGHTWHITE_EX}Connected_channels: {Fore.LIGHTCYAN_EX}{self.connected_channels}"
+                f"{Fore.LIGHTWHITE_EX}!{Style.RESET_ALL}"
+            )
+
+            # also remove event subscriptions for the channel
+            if self.config.get_bot_config().get("bot_features").get("enable_esclient"):
+                broadcasters: List[User] = await self.fetch_users(
+                    names=[param_username]
+                )
+                await self.es_client.delete_event_subscriptions(
+                    broadcasters=broadcasters
+                )
 
     @commands.command()
     async def song(self, ctx: commands.Context):
