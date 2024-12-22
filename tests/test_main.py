@@ -5,7 +5,7 @@ import os
 import boto3
 import pytest
 from moto import mock_aws
-from twitchio import BroadcasterTypeEnum, UserTypeEnum, AuthenticationError
+from twitchio import AuthenticationError, BroadcasterTypeEnum, UserTypeEnum
 
 from twitchrce.config import bot_config
 
