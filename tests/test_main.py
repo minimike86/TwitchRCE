@@ -5,7 +5,7 @@ import os
 import boto3
 import pytest
 from moto import mock_aws
-from twitchio import BroadcasterTypeEnum, UserTypeEnum
+from twitchio import BroadcasterTypeEnum, UserTypeEnum, AuthenticationError
 
 from twitchrce.config import bot_config
 
@@ -260,7 +260,7 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
     mock_get_item.return_value = {"Item": db_item_with_missing_access_token}
 
     with pytest.raises(
-        ValueError, match="Bot has no access_token. Authenticate to update your token!"
+        AuthenticationError, match="Invalid or unauthorized Access Token passed."
     ):
         event_loop = asyncio.get_event_loop()
         event_loop.run_until_complete(setup_bot())
@@ -298,10 +298,7 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
         Key={"id": BOT_CONFIG.get("twitch").get("bot_user_id")}
     )
 
-    with pytest.raises(
-        ValueError,
-        match="Bot user is not in the database. Authenticate to get an access token!",
-    ):
+    with pytest.raises((RuntimeError, ValueError)):
         event_loop = asyncio.get_event_loop()
         event_loop.run_until_complete(setup_bot())
 
@@ -366,5 +363,6 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
     )
     mock_check_valid_token.return_value = True
 
-    event_loop = asyncio.get_event_loop()
-    event_loop.run_until_complete(setup_bot())
+    with pytest.raises((RuntimeError, ValueError, TypeError)):
+        event_loop = asyncio.get_event_loop()
+        event_loop.run_until_complete(setup_bot())

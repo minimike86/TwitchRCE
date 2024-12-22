@@ -188,7 +188,7 @@ def test_validate_token_exception(mocker):
 def test_store_in_dynamodb_update_item_where_item_already_exists(
     set_environment_variables,
 ):
-    from store_oauth_authorize_code import store_in_dynamodb
+    from aws.lambdas.store_oauth_authorize_code import store_in_dynamodb
 
     # Insert an initial item into the table
     mock_dynamodb = boto3.resource("dynamodb")
