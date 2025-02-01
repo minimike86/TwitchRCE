@@ -1,6 +1,6 @@
 import pytest
 
-from twitchrce.config.bot_config import BotConfig
+from config import BotConfig
 
 
 @pytest.fixture(autouse=True)

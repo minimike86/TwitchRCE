@@ -1,7 +1,7 @@
 import pytest
 
-from twitchrce import custom_bot
-from twitchrce.cogs.ascii_cog import AsciiCog
+import custom_bot
+from cogs.ascii_cog import AsciiCog
 
 
 @pytest.fixture

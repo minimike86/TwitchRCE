@@ -1,12 +1,12 @@
 import logging
-from typing import TYPE_CHECKING
 
 import twitchio
 from twitchio import Chatter, PartialChatter, PartialUser, User
 from twitchio.ext import commands, pubsub
 
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from twitchrce.custom_bot import CustomBot
+    from bot.msecbot.custom_bot import CustomBot
 
 logging.basicConfig(
     level=logging.INFO,

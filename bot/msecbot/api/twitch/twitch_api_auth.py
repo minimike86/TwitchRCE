@@ -6,8 +6,8 @@ from typing import Optional
 import aiohttp
 from colorama import Fore, Style
 
-from twitchrce.config import bot_config
-from twitchrce.utils.utils import Utils
+from bot.msecbot.config import bot_config
+from bot.msecbot.utils.utils import Utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -128,7 +128,7 @@ class TwitchApiAuth:
                 status = resp.status
                 data = await resp.json()
         if status == 400:
-            from twitchrce.utils.utils import Utils
+            from utils.utils import Utils
 
             logger.error(
                 f"{Fore.RED}Refresh of user oauth access_token using refresh_token [{Fore.MAGENTA}"

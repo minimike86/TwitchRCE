@@ -7,9 +7,9 @@ import nest_asyncio
 from colorama import Fore, Style
 from twitchio import AuthenticationError
 
-from twitchrce.config import bot_config
-from twitchrce.custom_bot import CustomBot
-from twitchrce.utils.utils import Utils
+from bot.msecbot.config import bot_config
+from bot.msecbot.custom_bot import CustomBot
+from bot.msecbot.utils.utils import Utils
 
 nest_asyncio.apply()
 
@@ -184,9 +184,17 @@ async def setup_bot() -> CustomBot:
     return custom_bot
 
 
-if __name__ == "__main__":  # pragma: no cover
+async def main():
     try:
-        bot = asyncio.run(setup_bot())
-        bot.run()
+        bot = await setup_bot()
+        await bot.run()
     except AuthenticationError as auth_error:
         logger.error(msg=auth_error)
+
+
+def run_main():
+    asyncio.run(main())
+
+
+if __name__ == "__main__":  # pragma: no cover
+    asyncio.run(main())

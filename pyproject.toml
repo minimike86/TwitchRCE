@@ -1,24 +1,36 @@
-[tool.poetry]
-name = "twitchrce"
+[project]
+name = "msecbot"
 version = "0.1.0"
 description = "Twitch chat bot that allows RCE on broadcasters machine."
-authors = ["MSec <mich@elwarner.co.uk>"]
+keywords = [ "twitch", "chat", "bot", "msec", "rce" ]
+authors = [{name = "MSec", email = "mich@elwarner.co.uk"}]
+maintainers = [{name = "MSec", email = "mich@elwarner.co.uk"}]
 readme = "README.md"
+requires-python = "^3.12"
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+dependencies = [
+    "python-decouple (>=3.8)",
+    "colorama (>=0.4.6)",
+    "nest-asyncio (>=1.6.0)",
+    "boto3 (>=1.35.86)",
+    "twitchio (>=2.10.0)",
+    "vt-py (>=0.19.0)",
+    "pytest-responses (>=0.5.1)",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-python-decouple = "^3.8"
-colorama = "^0.4.6"
-black = "^24.10.0"
-nest-asyncio = "^1.6.0"
-boto3 = "^1.35.86"
-twitchio = "^2.10.0"
-vt-py = "^0.19.0"
-pytest-responses = "^0.5.1"
+[project.urls]
+homepage = "https://github.com/minimike86/TwitchRCE"
+repository = "https://github.com/minimike86/TwitchRCE"
+documentation = "https://github.com/minimike86/TwitchRCE/blob/main/README.md"
+bug-tracker = "https://github.com/minimike86/TwitchRCE/issues"
+
+[project.scripts]
+msecbot = "bot.msecbot.main:run_main"
+
+[tool.poetry]
+packages = [
+    { include = "bot", from = "." },
+]
 
 [tool.poetry.group.dev.dependencies]
 setuptools = "^75.2.0"
@@ -26,15 +38,19 @@ pytest = "^8.3.3"
 pytest-mock = "^3.14.0"
 pytest-asyncio = "^0.24.0"
 coverage = "^7.6.4"
-black = "^24.10.0"
+black = "^25.1.0"
 isort = "^5.13.2"
 six = "^1.16.0"
 moto = "^5.0.18"
 
 [tool.isort]
 profile = "black"
-src_paths = ["aws", "twitchrce", "tests"]
+src_paths = ["aws", "bot"]
 py_version = "312"
 
 [tool.black]
 target-version = ["py312"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

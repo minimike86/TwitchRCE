@@ -1,14 +1,16 @@
 import twitchio
 from twitchio.ext import commands
 
-from twitchrce import custom_bot
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from bot.msecbot.custom_bot import CustomBot
 
 # import soundfile as sf
 
 
 class SoundsCog(commands.Cog):
 
-    def __init__(self, bot: custom_bot.CustomBot):
+    def __init__(self, bot: "CustomBot"):
         self.bot = bot
 
     @commands.Cog.event()

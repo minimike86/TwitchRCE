@@ -7,7 +7,7 @@ from moto import mock_aws
 @mock_aws
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_get_app_token(mocker):
-    from twitchrce.utils.utils import Utils
+    from utils import Utils
 
     # Mock the response from client_credentials_grant_flow
     client_credentials_grant_flow_response = {
@@ -18,7 +18,7 @@ def test_get_app_token(mocker):
     }
 
     mock_client_credentials_grant_flow = mocker.patch(
-        "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
+        "msecbot.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
     )
     mock_client_credentials_grant_flow.return_value = (
         client_credentials_grant_flow_response

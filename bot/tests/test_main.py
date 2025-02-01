@@ -7,7 +7,7 @@ import pytest
 from moto import mock_aws
 from twitchio import AuthenticationError, BroadcasterTypeEnum, UserTypeEnum
 
-from twitchrce.config import bot_config
+from config import bot_config
 
 MOCK_REFRESH_ACCESS_TOKEN_RESPONSE_SUCCESS = {
     "access_token": "access_token_xyz789",
@@ -137,12 +137,12 @@ def db_item_with_missing_access_token():
 
 @mock_aws
 def test_main(mocker, capfd, bot_user):
-    from twitchrce.main import setup_bot
+    from main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
 
     mock_client_credentials_grant_flow = mocker.patch(
-        "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
+        "msecbot.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
     )
     mock_client_credentials_grant_flow_response = {
         "access_token": "access_token_xyz789",
@@ -154,7 +154,7 @@ def test_main(mocker, capfd, bot_user):
     )
 
     mock_validate_token = mocker.patch(
-        "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.validate_token"
+        "msecbot.api.twitch.twitch_api_auth.TwitchApiAuth.validate_token"
     )
     mock_validate_token.return_value = True
 
@@ -186,19 +186,19 @@ def test_main(mocker, capfd, bot_user):
             "refresh_token": "refresh_token_abc123",
         }
     )
-    mock_user_table = mocker.patch("twitchrce.main.user_table")
+    mock_user_table = mocker.patch("msecbot.main.user_table")
     mock_user_table.return_value = mock_table
 
     mock_bot_fetch_users = mocker.patch("twitchio.client.Client.fetch_users")
     mock_bot_fetch_users.return_value = [bot_user]
 
-    mock_bot_psclient = mocker.patch("twitchrce.custom_bot.CustomBot.__psclient_init__")
+    mock_bot_psclient = mocker.patch("msecbot.custom_bot.CustomBot.__psclient_init__")
     mock_bot_psclient.return_value = None
 
-    mock_bot_esclient = mocker.patch("twitchrce.custom_bot.CustomBot.__esclient_init__")
+    mock_bot_esclient = mocker.patch("msecbot.custom_bot.CustomBot.__esclient_init__")
     mock_bot_esclient.return_value = None
 
-    mock_custom_bot_class = mocker.patch("twitchrce.custom_bot.CustomBot")
+    mock_custom_bot_class = mocker.patch("msecbot.custom_bot.CustomBot")
     mock_custom_bot_instance = mock_custom_bot_class.return_value
     mock_custom_bot_instance.run = mocker.AsyncMock()
 
@@ -218,11 +218,11 @@ def test_main(mocker, capfd, bot_user):
 def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
     mocker, db_item_with_missing_access_token
 ):
-    from twitchrce.main import setup_bot
+    from main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
 
-    mock_get_app_token = mocker.patch("twitchrce.utils.utils.Utils.get_app_token")
+    mock_get_app_token = mocker.patch("msecbot.utils.utils.Utils.get_app_token")
     mock_get_app_token.return_value = "access_token_abc123"
 
     mock_dynamodb = boto3.resource(
@@ -253,10 +253,10 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
             "refresh_token": "refresh_token_abc123",
         }
     )
-    mock_user_table = mocker.patch("twitchrce.main.user_table")
+    mock_user_table = mocker.patch("msecbot.main.user_table")
     mock_user_table.return_value = mock_table
 
-    mock_get_item = mocker.patch("twitchrce.main.user_table.get_item")
+    mock_get_item = mocker.patch("msecbot.main.user_table.get_item")
     mock_get_item.return_value = {"Item": db_item_with_missing_access_token}
 
     with pytest.raises(
@@ -268,11 +268,11 @@ def test_setup_bot_if_bot_user_has_no_access_token_should_raise_value_error(
 
 @mock_aws
 def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
-    from twitchrce.main import setup_bot
+    from main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
 
-    mock_get_app_token = mocker.patch("twitchrce.utils.utils.Utils.get_app_token")
+    mock_get_app_token = mocker.patch("msecbot.utils.utils.Utils.get_app_token")
     mock_get_app_token.return_value = "access_token_abc123"
 
     mock_dynamodb = boto3.resource(
@@ -293,7 +293,7 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
         },
     )
     mock_table = mock_dynamodb.Table(table_name)
-    mock_get_item = mocker.patch("twitchrce.main.user_table.get_item")
+    mock_get_item = mocker.patch("msecbot.main.user_table.get_item")
     mock_get_item.return_value = mock_table.get_item(
         Key={"id": BOT_CONFIG.get("twitch").get("bot_user_id")}
     )
@@ -307,11 +307,11 @@ def test_setup_bot_if_db_has_no_bot_user_should_raise_value_error(mocker):
 def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_reservations(
     mocker, capfd, bot_user
 ):
-    from twitchrce.main import setup_bot
+    from main import setup_bot
 
     BOT_CONFIG = bot_config.BotConfig().get_bot_config()
 
-    mock_get_app_token = mocker.patch("twitchrce.utils.utils.Utils.get_app_token")
+    mock_get_app_token = mocker.patch("msecbot.utils.utils.Utils.get_app_token")
     mock_get_app_token.return_value = "access_token_abc123"
 
     mock_dynamodb = boto3.resource(
@@ -343,7 +343,7 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
         }
     )
 
-    mock_get_item = mocker.patch("twitchrce.main.user_table.get_item")
+    mock_get_item = mocker.patch("msecbot.main.user_table.get_item")
     mock_get_item.side_effect = [
         mock_table.get_item(
             Key={"id": BOT_CONFIG.get("twitch").get("bot_auth").get("bot_user_id")}
@@ -359,7 +359,7 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
     mock_bot_fetch_users.return_value = [bot_user]
 
     mock_check_valid_token = mocker.patch(
-        "twitchrce.utils.utils.Utils.check_valid_token"
+        "msecbot.utils.utils.Utils.check_valid_token"
     )
     mock_check_valid_token.return_value = True
 

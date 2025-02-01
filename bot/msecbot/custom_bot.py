@@ -27,11 +27,11 @@ from twitchio.ext.eventsub import (
     StreamOnlineData,
 )
 
-from twitchrce.api.virustotal.virus_total_api import VirusTotalApiClient
-from twitchrce.config.bot_config import BotConfig
-from twitchrce.esclient import CustomEventSubClient
-from twitchrce.psclient import CustomPubSubClient
-from twitchrce.utils.utils import Utils
+from bot.msecbot.api.virustotal.virus_total_api import VirusTotalApiClient
+from bot.msecbot.config.bot_config import BotConfig
+from bot.msecbot.esclient import CustomEventSubClient
+from bot.msecbot.psclient import CustomPubSubClient
+from bot.msecbot.utils.utils import Utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,7 +111,7 @@ class CustomBot(commands.Bot):
             .get("rce_cog")
             .get("enable_rce_cog")
         ):
-            from twitchrce.cogs.rce import RCECog
+            from bot.msecbot.cogs.rce import RCECog
 
             self.add_cog(RCECog(bot=self))
 
@@ -122,7 +122,7 @@ class CustomBot(commands.Bot):
             .get("vip_cog")
             .get("enable_vip_cog")
         ):
-            from twitchrce.cogs.vip import VIPCog
+            from bot.msecbot.cogs.vip import VIPCog
 
             self.add_cog(VIPCog(bot=self))
 
@@ -567,7 +567,7 @@ class CustomBot(commands.Bot):
                 .get("ascii_cog")
                 .get("enable_ascii_cog")
             ):
-                from cogs.ascii_cog import AsciiCog
+                from bot.msecbot.cogs.ascii_cog import AsciiCog
 
                 self.add_cog(AsciiCog(self))
 
@@ -865,28 +865,28 @@ class CustomBot(commands.Bot):
 
     @commands.command(aliases=["enablesounds"])
     async def sounds_on(self, ctx: commands.Context):
-        from cogs.sounds_cog import SoundsCog
+        from bot.msecbot.cogs.sounds_cog import SoundsCog
 
         self.add_cog(SoundsCog(self))
         await ctx.send(f"Sound Commands Enabled!")
 
     @commands.command(aliases=["disablesounds"])
     async def sounds_off(self, ctx: commands.Context):
-        from cogs.sounds_cog import SoundsCog
+        from bot.msecbot.cogs.sounds_cog import SoundsCog
 
         self.remove_cog(SoundsCog(self).name)
         await ctx.send(f"Sound Commands Disabled!")
 
     @commands.command()
     async def user_commands_on(self, ctx: commands.Context):
-        from cogs.user_cog import UserCog
+        from bot.msecbot.cogs.user_cog import UserCog
 
         self.add_cog(UserCog(self))
         await ctx.send(f"User Commands Enabled!")
 
     @commands.command()
     async def user_commands_off(self, ctx: commands.Context):
-        from cogs.user_cog import UserCog
+        from bot.msecbot.cogs.user_cog import UserCog
 
         self.remove_cog(UserCog(self).name)
         await ctx.send(f"User Commands Disabled!")
@@ -925,7 +925,7 @@ class CustomBot(commands.Bot):
         except IndexError:
             logger.error("!join command failed. Regex pattern did not match.")
 
-    @commands.command()
+    @commands.command(aliases=["fuckoffmsecbot"])
     async def leave(self, ctx: commands.Context):
         """type !leave <channel> to join the channel"""
         param_username = None
@@ -969,6 +969,12 @@ class CustomBot(commands.Bot):
                 await self.es_client.delete_event_subscriptions(
                     broadcasters=broadcasters
                 )
+
+    @commands.command(aliases=["stop", "close", "killyourselfmsecbot"])
+    async def exit(self, ctx: commands.Context):
+        """type !exit <channel> to stop the bot"""
+        await super().close()
+        exit()
 
     @commands.command()
     async def song(self, ctx: commands.Context):

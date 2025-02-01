@@ -1,7 +1,5 @@
 import pytest
 
-from twitchrce.utils.utils import Utils
-
 
 @pytest.mark.asyncio
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
@@ -13,7 +11,7 @@ async def test_get_app_token(mocker):
     }
 
     mock_client_credentials_grant_flow = mocker.patch(
-        "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
+        "msecbot.api.twitch.twitch_api_auth.TwitchApiAuth.client_credentials_grant_flow"
     )
     mock_client_credentials_grant_flow.return_value = (
         mock_client_credentials_grant_flow_response
@@ -27,7 +25,7 @@ async def test_get_app_token(mocker):
 @pytest.mark.asyncio
 async def test_check_valid_token_is_valid(mocker):
     mock_validate_token = mocker.patch(
-        "twitchrce.api.twitch.twitch_api_auth.TwitchApiAuth.validate_token"
+        "msecbot.api.twitch.twitch_api_auth.TwitchApiAuth.validate_token"
     )
     mock_validate_token.return_value = True
 

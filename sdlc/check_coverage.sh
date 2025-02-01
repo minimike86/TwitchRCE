@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Directories to include in coverage
-DIRECTORIES="aws tests twitchrce"
+DIRECTORIES="aws bot"
 
 # Run coverage for the specified directories
 echo "Running coverage for directories: $DIRECTORIES"

@@ -7,11 +7,11 @@ from twitchio import Chatter, Client, PartialChatter, User
 from twitchio.ext import pubsub
 from twitchio.ext.commands import Cog
 
-from twitchrce.cogs.rce import RCECog as RCE_Cog
-from twitchrce.cogs.vip import VIPCog as VIP_Cog
+from bot.msecbot.cogs.rce import RCECog as RCE_Cog
+from bot.msecbot.cogs.vip import VIPCog as VIP_Cog
 
 if TYPE_CHECKING:
-    from twitchrce.custom_bot import CustomBot
+    from bot.msecbot.custom_bot import CustomBot
 
 logging.basicConfig(
     level=logging.INFO,

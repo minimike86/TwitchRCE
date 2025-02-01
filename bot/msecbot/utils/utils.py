@@ -6,7 +6,7 @@ from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from colorama import Fore, Style
 from moto.dynamodb.exceptions import ResourceNotFoundException
 
-from twitchrce.config import bot_config
+from bot.msecbot.config import bot_config
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +21,7 @@ class Utils:
     @staticmethod
     async def get_app_token() -> str:
         """Uses the bots' client id and secret to generate a new application token via client credentials grant flow"""
-        from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+        from bot.msecbot.api.twitch.twitch_api_auth import TwitchApiAuth
 
         client_creds_grant_flow = await TwitchApiAuth().client_credentials_grant_flow()
         logger.info(
@@ -32,7 +32,7 @@ class Utils:
     @staticmethod
     async def refresh_user_token(user: any) -> str:
         # TODO: Replace with aws calls
-        from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+        from bot.msecbot.api.twitch.twitch_api_auth import TwitchApiAuth
 
         auth_result = await TwitchApiAuth().refresh_access_token(
             refresh_token=user.get("refresh_token")
@@ -78,7 +78,7 @@ class Utils:
             bool: True if the user's access token is valid after validation or refresh;
                   False if it remains invalid.
         """
-        from twitchrce.api.twitch.twitch_api_auth import TwitchApiAuth
+        from bot.msecbot.api.twitch.twitch_api_auth import TwitchApiAuth
 
         access_token = user.get("access_token")
         is_valid_token = await TwitchApiAuth().validate_token(access_token=access_token)

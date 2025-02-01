@@ -2,7 +2,7 @@ import asyncio
 
 import vt
 
-from twitchrce.config import bot_config
+from bot.msecbot.config import bot_config
 
 
 class VirusTotalApiClient:
