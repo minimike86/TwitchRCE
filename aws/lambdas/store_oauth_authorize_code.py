@@ -89,10 +89,10 @@ def get_secret(parameter):
 
 
 def lambda_handler(event, _context):
-    # Extract msecbot from query string parameters
+    # Extract code from query string parameters
     code = event.get("queryStringParameters", {}).get("code")
 
-    # Check if msecbot is present
+    # Check if code is present
     if not code:
         return {
             "statusCode": 400,

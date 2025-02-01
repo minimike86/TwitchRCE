@@ -82,7 +82,7 @@ def test_get_parameter_access_denied():
             operation_name="GetParameter",
         )
 
-    # Check that the error msecbot is "AccessDeniedException"
+    # Check that the error code is "AccessDeniedException"
     assert exc_info.value.response["Error"]["Code"] == "AccessDeniedException"
 
 
@@ -121,7 +121,7 @@ def test_get_parameter_incorrect_type(mocker):
     with pytest.raises(ClientError) as exc_info:
         get_parameter(parameter_name)
 
-    # Assert that the correct error msecbot was raised
+    # Assert that the correct error code was raised
     assert exc_info.value.response["Error"]["Code"] == "AccessDeniedException"
 
 
@@ -337,7 +337,7 @@ def test_store_in_dynamodb_client_error(mocker, set_environment_variables):
     # Call the function
     actual = store_in_dynamodb(token_response, validation_response)
 
-    # Assert that the correct error msecbot was raised
+    # Assert that the correct error code was raised
     assert actual.get("statusCode") == 500
     assert actual.get("body") == '"Error: Unknown"'
 
