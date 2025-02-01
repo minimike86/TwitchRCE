@@ -48,7 +48,7 @@ jobs:
         uses: isort/isort-action@master
         with:
           configuration: "--check-only --diff"
-          sortPaths: ["aws/lambdas", "bot/msecbot"]
+          sort-paths: "aws/lambdas bot/msecbot"
 
       - name: Run black
         uses: psf/black@stable
