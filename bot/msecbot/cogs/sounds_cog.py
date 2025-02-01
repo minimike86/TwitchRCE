@@ -1,7 +1,8 @@
+from typing import TYPE_CHECKING
+
 import twitchio
 from twitchio.ext import commands
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from bot.msecbot.custom_bot import CustomBot
 

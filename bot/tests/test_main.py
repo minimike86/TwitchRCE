@@ -4,10 +4,9 @@ import os
 
 import boto3
 import pytest
+from config import bot_config
 from moto import mock_aws
 from twitchio import AuthenticationError, BroadcasterTypeEnum, UserTypeEnum
-
-from config import bot_config
 
 MOCK_REFRESH_ACCESS_TOKEN_RESPONSE_SUCCESS = {
     "access_token": "access_token_xyz789",
@@ -358,9 +357,7 @@ def test_setup_bot_if_bot_user_has_access_token_but_describe_instances_has_no_re
     mock_bot_fetch_users = mocker.patch("twitchio.client.Client.fetch_users")
     mock_bot_fetch_users.return_value = [bot_user]
 
-    mock_check_valid_token = mocker.patch(
-        "msecbot.utils.utils.Utils.check_valid_token"
-    )
+    mock_check_valid_token = mocker.patch("msecbot.utils.utils.Utils.check_valid_token")
     mock_check_valid_token.return_value = True
 
     with pytest.raises((RuntimeError, ValueError, TypeError)):

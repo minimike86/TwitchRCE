@@ -1,6 +1,5 @@
-import pytest
-
 import custom_bot
+import pytest
 from cogs.ascii_cog import AsciiCog
 
 
