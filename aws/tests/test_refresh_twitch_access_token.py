@@ -11,7 +11,8 @@ from aws.lambdas.refresh_twitch_access_token import get_parameter, get_secret
 from aws.lambdas.refresh_twitch_access_token import (
     lambda_handler as refresh_twitch_access_token_handler,
 )
-from aws.lambdas.refresh_twitch_access_token import refresh_token, store_in_dynamodb
+
+from aws.lambdas.refresh_twitch_access_token import refresh_token, store_in_dynamodb  # isort:skip
 
 
 @pytest.fixture
