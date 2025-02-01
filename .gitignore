@@ -127,17 +127,18 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-/scopes.txt
+
+# idea project settings
+/.idea/*
 /test_main.py
 /twitchrce.sqlite
-/malicious_rce.txt
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/.gitignore
-/.idea/dataSources.xml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/sqldialects.xml
-/.idea/TwitchRCE.iml
-/.idea/vcs.xml
 /auth/twitchrce.sqlite
 /db/twitchrce.sqlite
+/scopes.txt
+/malicious_rce.txt
+
+# terraform
+/terraform/.terraform/
+/terraform/.terraform.lock.hcl
+/terraform/terraform.tfstate.backup
+/terraform/terraform.tfstate
